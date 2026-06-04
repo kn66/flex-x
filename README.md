@@ -13,10 +13,22 @@ completion style.
 ## Setup
 
 ```elisp
-(add-to-list 'load-path "/home/nobu43/.emacs.d/lisp/flex-x")
-(require 'flex-x)
+(use-package flex-x
+  :vc ( :url "https://github.com/nobu43/flex-x"
+        :rev :newest)
+  :config
+  (setopt completion-styles '(flex-x basic)))
+```
 
-(add-to-list 'completion-styles 'flex-x)
+Some completion categories have built-in `completion-category-overrides`
+which can prepend or replace styles for that category.  If you want
+`flex-x` to be preferred for those categories too, configure category
+overrides explicitly:
+
+```elisp
+(setopt completion-category-overrides
+        '((buffer (styles . (flex-x basic substring)))
+          (project-file (styles . (flex-x substring)))))
 ```
 
 With corfu, enable `corfu-history-mode` to sort flex-x candidates by the

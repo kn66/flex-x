@@ -348,6 +348,103 @@
     (should (member "東京" items))
     (should-not (member "東京都" items))))
 
+(ert-deftest flex-x-extra-matcher-limit-supports-hash-table ()
+  (let ((table (make-hash-table :test #'equal)))
+    (puthash "東京" 'city table)
+    (let* ((completion-styles '(flex-x))
+           (flex-x-extra-match-functions
+            (list (lambda (term candidate)
+                    (and (string= term "tokyo")
+                         (string= candidate "東京")))))
+           (flex-x-extra-pattern-function nil)
+           (flex-x-extra-match-nonascii-only t)
+           (flex-x-extra-match-candidate-limit 1))
+      (should (member "東京"
+                      (flex-x-tests--items
+                       (completion-all-completions
+                        "tokyo" table nil 5)))))))
+
+(ert-deftest flex-x-extra-matcher-limit-supports-hash-table-predicate ()
+  (let ((table (make-hash-table :test #'equal)))
+    (puthash "東京" 'city table)
+    (puthash "東京都" 'prefecture table)
+    (let* ((completion-styles '(flex-x))
+           (flex-x-extra-match-functions
+            (list (lambda (term candidate)
+                    (and (string= term "tokyo")
+                         (string= candidate "東京")))))
+           (flex-x-extra-pattern-function nil)
+           (flex-x-extra-match-nonascii-only t)
+           (flex-x-extra-match-candidate-limit 1)
+           (items (flex-x-tests--items
+                   (completion-all-completions
+                    "tokyo" table
+                    (lambda (_candidate value)
+                      (eq value 'city))
+                    5))))
+      (should (member "東京" items))
+      (should-not (member "東京都" items)))))
+
+(ert-deftest flex-x-extra-matcher-limit-counts-alist-string-keys ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-match-functions
+          (list (lambda (term candidate)
+                  (and (string= term "tokyo")
+                       (string= candidate "東京")))))
+         (flex-x-extra-pattern-function nil)
+         (flex-x-extra-match-nonascii-only t)
+         (flex-x-extra-match-candidate-limit 1))
+    (should (member "東京"
+                    (flex-x-tests--items
+                     (completion-all-completions
+                      "tokyo" '(("東京" . 1) ("東京" . 2)) nil 5))))))
+
+(ert-deftest flex-x-extra-matcher-obeys-file-name-ignored-extensions ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-match-functions
+          (list (lambda (term candidate)
+                  (and (string= term "tokyo")
+                       (string-match-p "東京" candidate)))))
+         (flex-x-extra-pattern-function nil)
+         (flex-x-extra-match-nonascii-only t)
+         (flex-x-extra-match-candidate-limit nil)
+         (minibuffer-completing-file-name t)
+         (completion-ignored-extensions '(".o")))
+    (should (equal (flex-x-tests--items
+                    (completion-all-completions
+                     "tokyo" '("東京.el" "東京.o") nil 5))
+                   '("東京.el")))))
+
+(ert-deftest flex-x-extra-matcher-file-name-limit-counts-filtered-candidates ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-match-functions
+          (list (lambda (term candidate)
+                  (and (string= term "tokyo")
+                       (string-match-p "東京" candidate)))))
+         (flex-x-extra-pattern-function nil)
+         (flex-x-extra-match-nonascii-only t)
+         (flex-x-extra-match-candidate-limit 1)
+         (minibuffer-completing-file-name t)
+         (completion-ignored-extensions '(".o")))
+    (should (equal (flex-x-tests--items
+                    (completion-all-completions
+                     "tokyo" '("東京.o" "東京.el") nil 5))
+                   '("東京.el")))))
+
+(ert-deftest flex-x-migemo-match-uses-default-extra-match-score ()
+  (cl-letf (((symbol-function 'migemo-get-pattern)
+             (lambda (_term) (regexp-quote "東京"))))
+    (let ((completion-styles '(flex-x))
+          (flex-x-extra-match-functions '(flex-x-migemo-match))
+          (flex-x-extra-pattern-function nil)
+          (flex-x-extra-match-nonascii-only t))
+      (let ((candidate (car (completion-all-completions
+                             "tokyo" '("東京") nil 5))))
+        (should (= (get-text-property 0 'flex-x-score candidate)
+                   flex-x-extra-match-score))
+        (should (flex-x-tests--all-face-p candidate
+                                          'flex-x-highlight))))))
+
 (ert-deftest flex-x-sort-prefers-history-then-score ()
   (let ((flex-x-tests-history '("far-baz")))
     (let* ((completion-styles '(flex-x))
@@ -467,6 +564,36 @@
                              (cdr metadata)
                              :key #'car-safe))))))
 
+(ert-deftest flex-x-empty-input-does-not-install-sort-functions ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-match-functions nil)
+         (flex-x-extra-pattern-function nil)
+         (table '("b" "a"))
+         (metadata (completion-metadata "" table nil)))
+    (completion-all-completions "" table nil 0 metadata)
+    (should-not (completion-metadata-get metadata 'display-sort-function))
+    (should-not (completion-metadata-get metadata 'cycle-sort-function))
+    (should-not (assq 'flex-x--adjusted-metadata (cdr metadata)))))
+
+(ert-deftest flex-x-empty-input-restores-original-sort-functions ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-sort-by-history nil)
+         (flex-x-extra-match-functions nil)
+         (flex-x-extra-pattern-function nil)
+         (table '("foo-bar" "fbar" "far-baz"))
+         (metadata '(metadata
+                     (display-sort-function . reverse)
+                     (cycle-sort-function . nreverse))))
+    (completion-all-completions "fb" table nil 2 metadata)
+    (should-not (eq (completion-metadata-get metadata 'display-sort-function)
+                    'reverse))
+    (completion-all-completions "" table nil 0 metadata)
+    (should (eq (completion-metadata-get metadata 'display-sort-function)
+                'reverse))
+    (should (eq (completion-metadata-get metadata 'cycle-sort-function)
+                'nreverse))
+    (should-not (assq 'flex-x--adjusted-metadata (cdr metadata)))))
+
 (ert-deftest flex-x-try-completion-updates-single-term-sort-context ()
   (let* ((completion-styles '(flex-x))
          (flex-x-sort-by-history nil)
@@ -499,6 +626,14 @@
                     '("find-file" "project-find-file" "switch-to-buffer")
                     nil 5)
                    '("project-find-file" . 17)))))
+
+(ert-deftest flex-x-try-completion-extends-common-multi-term-prefix ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (should (equal (flex-x-try-completion
+                    "fb ba" '("foo-bar" "foo-baz" "far-qux") nil 5)
+                   '("foo-ba" . 6)))))
 
 (ert-deftest flex-x-try-completion-preserves-boundary-prefix ()
   (let* ((completion-styles '(flex-x))
@@ -549,6 +684,25 @@
 	(should (flex-x-tests--all-face-p candidate 'flex-x-highlight))
 	(should (flex-x-tests--face-at-p candidate 0
 	                                 'completions-common-part))))))
+
+(ert-deftest flex-x-emacs31-cost-matching-highlights-first-difference ()
+  (cl-letf (((symbol-function 'completion--flex-cost)
+             (lambda (term candidate &optional _dont-error)
+               (and (string= term "fb")
+                    (string= candidate "foo-bar")
+                    (cons 1 '(0 4))))))
+    (let ((completion-styles '(flex-x))
+          (flex-x-extra-match-functions nil)
+          (flex-x-extra-pattern-function nil))
+      (let* ((completions (completion-all-completions
+                           "fb" '("foo-bar") nil 2))
+             (candidate (car completions)))
+        (should (flex-x-tests--face-at-p candidate 0
+                                         'completions-common-part))
+        (should (flex-x-tests--face-at-p candidate 4
+                                         'completions-common-part))
+        (should (flex-x-tests--face-at-p candidate 5
+                                         'completions-first-difference))))))
 
 (ert-deftest flex-x-emacs31-reuses-seed-flex-cost ()
   (let ((cost-calls 0))
