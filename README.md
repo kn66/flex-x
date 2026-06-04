@@ -19,6 +19,17 @@ completion style.
 (add-to-list 'completion-styles 'flex-x)
 ```
 
+With corfu, enable `corfu-history-mode` to sort flex-x candidates by the
+recently selected corfu candidates before flex match quality:
+
+```elisp
+(with-eval-after-load 'corfu
+  (corfu-history-mode 1))
+
+;; Optional: persist corfu history across sessions.
+(savehist-mode 1)
+```
+
 For migemo-style matching, pass `migemo-get-pattern` directly:
 
 ```elisp
@@ -77,4 +88,5 @@ It can return:
 - a plist: `(:score SCORE :ranges ((BEG . END) ...))`.
 
 `ranges` are optional candidate character ranges highlighted with
-`completions-common-part`.
+`completions-common-part`.  Matchers that signal an error are ignored so
+that one broken matcher does not abort completion.

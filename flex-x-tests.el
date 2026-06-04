@@ -5,6 +5,11 @@
 (require 'ert)
 (require 'flex-x)
 
+(defvar corfu-history)
+(defvar corfu-history-decay)
+(defvar corfu-history-duplicate)
+(defvar corfu-history-mode)
+
 (defvar flex-x-tests-history nil
   "History variable used by flex-x tests.")
 
@@ -38,6 +43,22 @@
   "Return non-nil if CANDIDATE has FACE everywhere."
   (cl-loop for pos below (length candidate)
            always (flex-x-tests--face-at-p candidate pos face)))
+
+(defun flex-x-tests--slash-boundary-table (candidates)
+  "Return a completion table for slash-delimited CANDIDATES."
+  (lambda (string pred action)
+    (let* ((slash (cl-position ?/ string :from-end t))
+           (start (if slash (1+ slash) 0))
+           (field (substring string start)))
+      (cond
+       ((eq action 'metadata) nil)
+       ((eq (car-safe action) 'boundaries)
+        (let* ((suffix (cdr action))
+               (end (or (cl-position ?/ suffix)
+                        (length suffix))))
+          `(boundaries ,start . ,end)))
+       (t
+        (complete-with-action action candidates field pred))))))
 
 (ert-deftest flex-x-space-separated-terms-filter-with-and ()
   (let ((completion-styles '(flex-x))
@@ -239,6 +260,45 @@
         (should (equal items '("foo-bar" "fbar" "far-baz")))
         (should (= calls 1))))))
 
+(ert-deftest flex-x-duplicate-candidates-preserve-distinct-properties ()
+  (let* ((first (propertize "foo" 'flex-x-tests-id 1))
+         (second (propertize "foo" 'flex-x-tests-id 2))
+         (deduped (flex-x--delete-duplicate-candidates
+                   (list first second))))
+    (should (= (length deduped) 2))
+    (should (equal (mapcar (lambda (candidate)
+                             (get-text-property 0 'flex-x-tests-id
+                                                candidate))
+                           deduped)
+                   '(1 2)))))
+
+(ert-deftest flex-x-duplicate-candidates-ignore-flex-derived-properties ()
+  (let* ((seed (propertize "foo"
+                           'completion-score 1.0
+                           'flex-cost 0
+                           'flex-matches '(0 1 2)
+                           'flex-x--seed-term "foo"))
+         (plain "foo")
+         (deduped (flex-x--delete-duplicate-candidates
+                   (list seed plain))))
+    (should (= (length deduped) 1))
+    (should (equal (car deduped) seed))))
+
+(ert-deftest flex-x-extra-matcher-error-does-not-abort-completion ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions
+         (list (lambda (_term _candidate)
+                 (error "broken matcher"))
+               (lambda (term candidate)
+                 (and (string= term "tokyo")
+                      (string= candidate "東京")))))
+        (flex-x-extra-pattern-function nil)
+        (flex-x-extra-match-nonascii-only t))
+    (should (member "東京"
+                    (flex-x-tests--items
+                     (completion-all-completions
+                      "tokyo" '("東京") nil 5))))))
+
 (ert-deftest flex-x-extra-matcher-respects-candidate-limit ()
   (let* ((completion-styles '(flex-x))
          (calls 0)
@@ -305,6 +365,72 @@
                                (flex-x-tests--items completions)))
 	                     '("far-baz" "foo-bar"))))))
 
+(ert-deftest flex-x-sort-prefers-corfu-history-then-score ()
+  (let ((flex-x-tests-history '("foo-bar")))
+    (let* ((completion-styles '(flex-x))
+           (flex-x-extra-match-functions nil)
+           (flex-x-extra-pattern-function nil)
+           (corfu-history-mode t)
+           (corfu-history '("far-baz"))
+           (minibuffer-history-variable 'flex-x-tests-history)
+           (metadata (completion-metadata "" '("foo-bar" "far-baz") nil))
+           (completions (completion-all-completions
+                         "fb" '("foo-bar" "far-baz") nil 2 metadata))
+           (sort-function (completion-metadata-get metadata
+                                                   'display-sort-function)))
+      (should sort-function)
+      (should (equal (flex-x-tests--items
+                      (funcall sort-function
+                               (flex-x-tests--items completions)))
+                     '("far-baz" "foo-bar"))))))
+
+(ert-deftest flex-x-sort-corfu-history-duplicates-raise-rank ()
+  (let* ((corfu-history-mode t)
+         (corfu-history-duplicate 10)
+         (corfu-history-decay 10)
+         (corfu-history '("unused" "foo-bar" "far-baz" "far-baz"))
+         (high-score (propertize "foo-bar"
+                                 'completion-score 1.0
+                                 'flex-x-score 1.0))
+         (low-score (propertize "far-baz"
+                                'completion-score 0.1
+                                'flex-x-score 0.1)))
+    (should (equal (mapcar #'substring-no-properties
+                           (flex-x--sort-candidates
+                            (list high-score low-score)))
+                   '("far-baz" "foo-bar")))))
+
+(ert-deftest flex-x-sort-computes-match-once-per-candidate ()
+  (let* ((flex-x-sort-by-history nil)
+         (calls 0)
+         (match-context (flex-x--make-match-context '("fb") "")))
+    (cl-letf (((symbol-function 'flex-x--match-candidate)
+               (lambda (candidate _terms _pattern-cache _flex-regexp-cache)
+                 (cl-incf calls)
+                 (list :score (if (string= candidate "far-baz")
+                                  1.0
+                                0.1)))))
+      (should (equal (flex-x--sort-candidates
+                      '("foo-bar" "far-baz")
+                      match-context)
+                     '("far-baz" "foo-bar")))
+      (should (= calls 2)))))
+
+(ert-deftest flex-x-sort-by-history-toggle-disables-corfu-history ()
+  (let* ((flex-x-sort-by-history nil)
+         (corfu-history-mode t)
+         (corfu-history '("far-baz"))
+         (high-score (propertize "foo-bar"
+                                 'completion-score 1.0
+                                 'flex-x-score 1.0))
+         (low-score (propertize "far-baz"
+                                'completion-score 0.1
+                                'flex-x-score 0.1)))
+    (should (equal (mapcar #'substring-no-properties
+                           (flex-x--sort-candidates
+                            (list low-score high-score)))
+                   '("foo-bar" "far-baz")))))
+
 (ert-deftest flex-x-sort-function-keeps-match-context ()
   (let* ((completion-styles '(flex-x))
          (flex-x-sort-by-history nil)
@@ -317,6 +443,42 @@
                                                   'display-sort-function)))
       (should sort-function)
       (completion-all-completions "zz" '("zzz") nil 2)
+      (should (equal (funcall sort-function
+                              '("foo-bar" "fbar" "far-baz"))
+                     '("fbar" "foo-bar" "far-baz"))))))
+
+(ert-deftest flex-x-adjust-metadata-does-not-wrap-sort-function-repeatedly ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-sort-by-history nil)
+         (flex-x-extra-match-functions nil)
+         (flex-x-extra-pattern-function nil)
+         (table '("foo-bar" "fbar" "far-baz"))
+         (metadata (completion-metadata "" table nil)))
+    (completion-all-completions "fb" table nil 2 metadata)
+    (let ((sort-function (completion-metadata-get metadata
+                                                  'display-sort-function))
+          (metadata-length (length (cdr metadata))))
+      (completion-all-completions "fa" table nil 2 metadata)
+      (should (eq sort-function
+                  (completion-metadata-get metadata
+                                           'display-sort-function)))
+      (should (= metadata-length (length (cdr metadata))))
+      (should (= 1 (cl-count 'display-sort-function
+                             (cdr metadata)
+                             :key #'car-safe))))))
+
+(ert-deftest flex-x-try-completion-updates-single-term-sort-context ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-sort-by-history nil)
+         (flex-x-extra-match-functions nil)
+         (flex-x-extra-pattern-function nil)
+         (flex-x--last-match-context (flex-x--make-match-context '("zz") ""))
+         (table '("foo-bar" "fbar" "far-baz"))
+         (metadata (completion-metadata "" table nil)))
+    (completion-try-completion "fb" table nil 2 metadata)
+    (let ((sort-function (completion-metadata-get metadata
+                                                  'display-sort-function)))
+      (should sort-function)
       (should (equal (funcall sort-function
                               '("foo-bar" "fbar" "far-baz"))
                      '("fbar" "foo-bar" "far-baz"))))))
@@ -337,6 +499,25 @@
                     '("find-file" "project-find-file" "switch-to-buffer")
                     nil 5)
                    '("project-find-file" . 17)))))
+
+(ert-deftest flex-x-try-completion-preserves-boundary-prefix ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-match-functions nil)
+         (flex-x-extra-pattern-function nil)
+         (table (flex-x-tests--slash-boundary-table '("foo-bar")))
+         (input "dir/foo bar"))
+    (should (equal (flex-x-try-completion input table nil (length input))
+                   '("dir/foo-bar" . 11)))))
+
+(ert-deftest flex-x-try-completion-preserves-boundary-suffix ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-match-functions nil)
+         (flex-x-extra-pattern-function nil)
+         (table (flex-x-tests--slash-boundary-table '("foo-bar")))
+         (input "dir/foo bar/qux")
+         (point (length "dir/foo bar")))
+    (should (equal (flex-x-try-completion input table nil point)
+                   '("dir/foo-bar/qux" . 11)))))
 
 (ert-deftest flex-x-try-completion-keeps-input-for-multiple-matches ()
   (let ((completion-styles '(flex-x))
