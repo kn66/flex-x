@@ -11,7 +11,7 @@ live at the repository root:
   text properties, and compatibility paths.
 - `FEATURES.md`: required behavior, explicit non-goals, and feature-scoped
   simplicity constraints.
-- `README.md`: user-facing setup and behavior.
+- `README.org`: user-facing setup and behavior.
 
 Compiled `.elc` files may exist in the tree, but contributors should edit the
 `.el` sources and regenerate bytecode only when intentionally updating compiled

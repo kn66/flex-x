@@ -1,0 +1,137 @@
+* flex-x
+
+~flex-x~ is an Emacs completion style built on the built-in ~flex~
+completion style.
+
+* Features
+
+- Space-separated AND filtering.
+- Sort by minibuffer history, then flex match quality.
+- Sort by Corfu history outside the minibuffer when ~corfu-history-mode~ is
+  active.
+- Highlight matches with standard completion faces, and highlight high-score
+  candidates as a whole with ~flex-x-highlight~.
+- Add extra matchers or regexp expanders for non-ASCII candidates, for example
+  migemo or pyim.
+
+* Screenshots
+:PROPERTIES:
+:ID:       bc64ca3a-d248-4608-be1e-a2e45bc9af60
+:END:
+
+~flex-x~ keeps the standard completion UI while adding AND-style filtering,
+match highlighting, and optional extra matching for non-ASCII candidates.
+
+#+DOWNLOADED: screenshot @ 2026-06-07 08:36:20
+#+caption: Completion candidates are filtered and sorted by flex match quality, with matching parts highlighted.
+[[file:Screenshots/2026-06-07_08-36-20_screenshot.png]]
+
+
+#+DOWNLOADED: screenshot @ 2026-06-07 08:37:47
+#+caption: Compact completion popups show the same match highlights on each candidate.
+[[file:Screenshots/2026-06-07_08-37-47_screenshot.png]]
+
+#+DOWNLOADED: screenshot @ 2026-06-07 08:46:08
+#+caption: Extra matchers can surface non-ASCII candidates, such as Japanese text matched from romanized input.
+[[file:Screenshots/2026-06-07_08-46-08_screenshot.png]]
+
+
+* Setup
+
+#+begin_src emacs-lisp
+  (use-package flex-x
+    :vc ( :url "https://github.com/kn66/flex-x"
+          :rev :newest)
+    :config
+    (setopt completion-styles '(flex-x basic)))
+#+end_src
+
+Some completion categories have built-in ~completion-category-overrides~
+which can prepend or replace styles for that category. If you want
+~flex-x~ to be preferred for those categories too, configure category
+overrides explicitly:
+
+#+begin_src emacs-lisp
+  (setopt completion-category-overrides
+          '((buffer (styles . (flex-x basic substring)))
+            (project-file (styles . (flex-x substring)))))
+#+end_src
+
+For migemo-style matching, pass ~migemo-get-pattern~ directly:
+
+#+begin_src emacs-lisp
+  (with-eval-after-load 'migemo
+    (setq flex-x-extra-pattern-function #'migemo-get-pattern))
+#+end_src
+
+For pyim-style matching:
+
+#+begin_src emacs-lisp
+  (with-eval-after-load 'pyim
+    (require 'pyim-cregexp-utils nil t)
+    (setq flex-x-extra-pattern-function #'pyim-cregexp-build))
+#+end_src
+
+By default, extra matching is called only for candidates containing
+non-ASCII characters. Customize ~flex-x-extra-match-nonascii-only~ if
+you want it to run for every candidate.
+
+Extra matching scans up to ~flex-x-extra-match-candidate-limit~
+candidates for the current completion prefix. The default limit is
+~5000~; set it to nil if you want migemo or pyim expansion to scan every
+candidate even in very large completion tables.
+
+With Corfu, enable ~corfu-history-mode~ to sort flex-x candidates by the
+recently selected Corfu candidates before flex match quality:
+
+#+begin_src emacs-lisp
+  (with-eval-after-load 'corfu
+    (corfu-history-mode 1))
+#+end_src
+
+High-score candidates are highlighted as a whole with ~flex-x-highlight~.
+The default threshold is ~0.05~; customize
+~flex-x-highlight-score-threshold~ to change it.
+
+* Regexp Expander
+
+~flex-x-extra-pattern-function~ can be nil, one function, or a list of
+functions. Each function receives a search term and should return a
+regexp string or nil.
+
+Examples:
+
+#+begin_src emacs-lisp
+  (setq flex-x-extra-pattern-function #'migemo-get-pattern)
+
+  (setq flex-x-extra-pattern-function
+        '(migemo-get-pattern pyim-cregexp-build))
+#+end_src
+
+* Custom Matcher Protocol
+
+For lower-level control, use ~flex-x-extra-match-functions~.
+
+Each function in ~flex-x-extra-match-functions~ receives ~(TERM
+CANDIDATE)~.
+
+It can return:
+
+- ~nil~: no match.
+- ~t~: match with ~flex-x-extra-match-score~.
+- a number: match with that score.
+- a plist: ~(:score SCORE :ranges ((BEG . END) ...))~.
+
+~ranges~ are optional candidate character ranges highlighted with
+~completions-common-part~. Matchers that signal an error are ignored so
+that one broken matcher does not abort completion.
+
+* Development
+
+~FEATURES.md~ defines the package behavior boundary.
+
+#+begin_src sh
+  make test
+  make compile
+  make check
+#+end_src

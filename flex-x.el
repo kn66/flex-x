@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2026
 
-;; Author: nobu43
+;; Author: kn66
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "30.1"))
 ;; Keywords: convenience, matching

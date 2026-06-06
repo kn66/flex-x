@@ -3,7 +3,7 @@
 This file defines the feature boundary for `flex-x`. Keep it short: list
 user-visible completion behavior, compatibility commitments, performance
 requirements, and non-goals. Put implementation details in tests, code, or
-`README.md`.
+`README.org`.
 
 ## Required Behavior
 
