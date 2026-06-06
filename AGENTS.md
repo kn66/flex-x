@@ -2,23 +2,37 @@
 
 ## Project Structure & Module Organization
 
-This repository contains a small Emacs Lisp completion package. The main
-implementation is `flex-x.el`, and ERT tests live in `flex-x-tests.el`.
-`README.md` documents user-facing setup and behavior. Compiled `.elc` files may
-exist in the tree, but contributors should edit the `.el` sources and regenerate
-bytecode only when intentionally updating compiled artifacts.
+This repository contains a small Emacs Lisp completion package. Source files
+live at the repository root:
+
+- `flex-x.el`: completion style implementation, matching, sorting, highlighting,
+  metadata adjustment, and optional extra matchers.
+- `flex-x-tests.el`: ERT coverage for matching semantics, sorting, highlighting,
+  text properties, and compatibility paths.
+- `FEATURES.md`: required behavior, explicit non-goals, and feature-scoped
+  simplicity constraints.
+- `README.md`: user-facing setup and behavior.
+
+Compiled `.elc` files may exist in the tree, but contributors should edit the
+`.el` sources and regenerate bytecode only when intentionally updating compiled
+artifacts.
 
 ## Build, Test, and Development Commands
 
-- `emacs -Q -L . -batch -l flex-x-tests.el -f ert-run-tests-batch-and-exit`
-  runs the full ERT test suite with only this directory on `load-path`.
-- `emacs -Q -L . -batch -f batch-byte-compile flex-x.el flex-x-tests.el`
-  byte-compiles the package and tests, surfacing compiler warnings.
-- `emacs -Q -L . --eval "(require 'flex-x)"`
-  performs a minimal load check in a clean Emacs session.
+- `make test`: run the ERT suite in batch Emacs.
+- `make compile`: byte-compile sources and tests with warnings treated as
+  errors.
+- `make load`: perform a minimal load check in a clean Emacs session.
+- `make package-lint`: run `package-lint` on the main package file.
+- `make checkdoc`: check docstrings and documentation conventions.
+- `make check-declare`: validate external declarations.
+- `make check`: run the full validation set above.
+- `make clean-elc`: remove generated `.elc` files and the temporary compile
+  directory.
 
-Use Emacs 30.1 or newer, matching the `Package-Requires` header in
-`flex-x.el`.
+Use Emacs 30.1 or newer, matching the `Package-Requires` header in `flex-x.el`.
+Use `EMACS=/path/to/emacs make check` to validate against a specific Emacs
+binary.
 
 ## Coding Style & Naming Conventions
 
@@ -34,13 +48,14 @@ with Emacs internals.
 
 ## Testing Guidelines
 
-Tests use the built-in `ert` framework. Add or update tests in
-`flex-x-tests.el` for every behavior change, especially matching semantics,
-sorting, highlighting, text properties, and compatibility paths for different
-Emacs completion internals. Keep tests deterministic by binding package
-customization variables locally with `let`.
+Tests use the built-in `ert` framework. Add or update tests in `flex-x-tests.el`
+for every behavior change, especially matching semantics, sorting,
+highlighting, text properties, and compatibility paths for different Emacs
+completion internals. Keep tests deterministic by binding package customization
+variables locally with `let`.
 
-Before submitting a change, run the ERT command and the byte-compile command.
+Run `make test` for focused validation and `make check` before submitting
+broader changes.
 
 ## Commit & Pull Request Guidelines
 
@@ -57,3 +72,14 @@ available, and include screenshots only for UI-visible highlighting changes.
 
 Do not rewrite unrelated Emacs configuration files outside this package while
 working here. Preserve existing user changes in the wider `.emacs.d` worktree.
+
+Before making non-trivial code changes, read `FEATURES.md` and keep the
+implementation limited to the listed behavior. When adding or changing behavior,
+update `FEATURES.md` first or in the same change so the required functionality
+remains explicit.
+
+Implement the simplest maintainable code that satisfies `FEATURES.md`. Do not
+add abstractions, options, compatibility paths, optimizations, or unrelated
+refactors unless they are needed for a listed feature. Treat performance
+requirements as features, and document the reason or target when an optimization
+adds complexity.
