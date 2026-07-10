@@ -244,6 +244,22 @@
                           "tokyo" '("東京" "東京都") nil 5))))
     (should (= calls 0))))
 
+(ert-deftest flex-x-extra-matcher-stops-enumerating-at-candidate-limit ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-match-functions (list (lambda (&rest _) t)))
+         (flex-x-extra-pattern-function nil)
+         (flex-x-extra-match-nonascii-only nil)
+         (flex-x-extra-match-candidate-limit 5)
+         (candidates (mapcar #'number-to-string (number-sequence 1 100)))
+         (calls 0)
+         (original-candidate-key (symbol-function 'flex-x--candidate-key)))
+    (cl-letf (((symbol-function 'flex-x--candidate-key)
+               (lambda (candidate)
+                 (cl-incf calls)
+                 (funcall original-candidate-key candidate))))
+      (completion-all-completions "zzz" candidates nil 3)
+      (should (= calls 6)))))
+
 (ert-deftest flex-x-extra-matcher-obeys-file-name-ignored-extensions ()
   (let* ((completion-styles '(flex-x))
          (flex-x-extra-match-functions
@@ -259,6 +275,22 @@
                     (completion-all-completions
                      "tokyo" '("東京.el" "東京.o") nil 5))
                    '("東京.el")))))
+
+(ert-deftest flex-x-extra-matcher-keeps-sole-matching-ignored-file ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-match-functions
+          (list (lambda (term candidate)
+                  (and (string= term "zzz")
+                       (string= candidate "special.o")))))
+         (flex-x-extra-pattern-function nil)
+         (flex-x-extra-match-nonascii-only nil)
+         (flex-x-extra-match-candidate-limit nil)
+         (minibuffer-completing-file-name t)
+         (completion-ignored-extensions '(".o")))
+    (should (equal (flex-x-tests--items
+                    (completion-all-completions
+                     "zzz" '("special.o" "unrelated.el") nil 3))
+                   '("special.o")))))
 
 (ert-deftest flex-x-migemo-match-does-not-require-migemo ()
   (should-not (flex-x-migemo-match "tokyo" "東京"))
@@ -436,8 +468,8 @@
     (cl-letf (((symbol-function 'completion-flex-all-completions)
                (lambda (_string _table _pred _point)
                  (cons (propertize "foo"
-                                    'flex-cost 0
-                                    'flex-matches '(0 1 2))
+                                   'flex-cost 0
+                                   'flex-matches '(0 1 2))
                        0)))
               ((symbol-function 'completion--flex-cost)
                (lambda (&rest _)

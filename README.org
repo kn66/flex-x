@@ -77,9 +77,12 @@ non-ASCII characters. Customize ~flex-x-extra-match-nonascii-only~ if
 you want it to run for every candidate.
 
 Extra matching scans up to ~flex-x-extra-match-candidate-limit~
-candidates for the current completion prefix. The default limit is
-~5000~; set it to nil if you want migemo or pyim expansion to scan every
-candidate even in very large completion tables.
+raw candidates for the current completion prefix. The default limit is
+~5000~; when it is exceeded, flex-x stops predicate-driven enumeration
+and skips the extra matching pass. Set it to nil if you want migemo or
+pyim expansion to scan every candidate even in very large completion
+tables. Ignored filename extensions are filtered after extra matching,
+so an ignored file remains available when it is the only match.
 
 With Corfu, enable ~corfu-history-mode~ to sort flex-x candidates by the
 recently selected Corfu candidates before flex match quality:

@@ -23,8 +23,11 @@ requirements, and non-goals. Put implementation details in tests, code, or
   highlighting and lower-cost sorting.
 - Support optional extra matchers and regexp expanders such as migemo or pyim
   without requiring third-party packages at load time.
-- Keep extra matching bounded by default and cache generated patterns per
-  completion request.
+- Keep extra matching bounded by default by stopping predicate-driven candidate
+  enumeration when the configured limit is exceeded, and cache generated
+  patterns per completion request.
+- Apply ignored-extension filtering after extra matching so an ignored file is
+  retained when it is the only matching candidate.
 
 ## Non-Goals
 

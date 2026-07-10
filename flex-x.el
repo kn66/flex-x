@@ -6,7 +6,7 @@
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "30.1"))
 ;; Keywords: convenience, matching
-;; URL: https://github.com/nobu43/flex-x
+;; URL: https://github.com/kn66/flex-x
 
 ;;; Commentary:
 
@@ -374,7 +374,7 @@ Set this to nil to allow scanning every prefix candidate."
              when (string-match regexp candidate)
              return (list :score flex-x-extra-match-score
                           :ranges (list (cons (match-beginning 0)
-                                               (match-end 0)))))))
+                                              (match-end 0)))))))
 
 (defun flex-x--extra-match (term candidate match-context)
   "Return extra match information for TERM and CANDIDATE."
@@ -501,12 +501,7 @@ Set this to nil to allow scanning every prefix candidate."
 
 (defun flex-x--all-table-candidates (context table pred)
   "Return all prefix candidates in TABLE using CONTEXT and PRED."
-  (let ((candidates (all-completions (flex-x--context-prefix context)
-                                     table
-                                     pred)))
-    (if minibuffer-completing-file-name
-        (completion-pcm--filename-try-filter candidates)
-      candidates)))
+  (all-completions (flex-x--context-prefix context) table pred))
 
 (defun flex-x--candidate-key (candidate)
   "Return plain key for CANDIDATE."
@@ -540,23 +535,21 @@ Set this to nil to allow scanning every prefix candidate."
                  (when (> count limit)
                    (throw 'too-many nil))))))))))
 
-(defun flex-x--candidate-limit-predicate (pred limit too-many)
+(defun flex-x--candidate-limit-predicate (pred limit tag marker)
   "Return predicate combining PRED with LIMIT.
 
-TOO-MANY is a cons cell whose car is set to non-nil once more than
-LIMIT unique candidates have been accepted."
+Throw MARKER to TAG once more than LIMIT unique candidates have been
+accepted."
   (let ((seen (make-hash-table :test #'equal))
         (count 0))
     (lambda (&rest args)
       (and (or (null pred) (apply pred args))
            (progn
              (when (flex-x--first-candidate-p (car args) seen)
-               (cl-incf count))
-             (if (> count limit)
-                 (progn
-                   (setcar too-many t)
-                   nil)
-               t))))))
+               (cl-incf count)
+               (when (> count limit)
+                 (throw tag marker)))
+             t)))))
 
 (defun flex-x--extra-table-candidates (context table pred)
   "Return candidates for extra matching when the scan is bounded."
@@ -564,18 +557,20 @@ LIMIT unique candidates have been accepted."
     (cond
      ((null limit)
       (flex-x--all-table-candidates context table pred))
-     (minibuffer-completing-file-name
-      (let ((candidates (flex-x--all-table-candidates context table pred)))
-        (when (flex-x--within-candidate-limit-p candidates)
-          candidates)))
      ((and (integerp limit) (>= limit 0))
-      (let* ((too-many (cons nil nil))
+      (let* ((tag (make-symbol "flex-x--candidate-limit"))
+             (marker (cons nil nil))
              (limited-pred (flex-x--candidate-limit-predicate
-                            pred limit too-many))
-             (candidates (flex-x--all-table-candidates
-                          context table limited-pred)))
-        (unless (car too-many)
-          candidates))))))
+                            pred limit tag marker))
+             (candidates
+              (catch tag
+                (flex-x--all-table-candidates
+                 context table limited-pred))))
+        (unless (eq candidates marker)
+          ;; A custom table may ignore PRED, so enforce the limit on its
+          ;; returned candidates as a fallback.
+          (when (flex-x--within-candidate-limit-p candidates)
+            candidates)))))))
 
 (defun flex-x--builtin-flex-candidates (context table pred term)
   "Return built-in flex candidates for TERM using CONTEXT, TABLE and PRED."
@@ -616,6 +611,9 @@ LIMIT unique candidates have been accepted."
             (setq candidates (append candidates extra-candidates))))
         (setq candidates
               (flex-x--matched-candidates candidates match-context))
+        (when (and extra-matchers minibuffer-completing-file-name)
+          (setq candidates
+                (completion-pcm--filename-try-filter candidates)))
         (when (and (flex-x--lazy-hilit-p)
                    (boundp 'completion-lazy-hilit-fn))
           (setq completion-lazy-hilit-fn #'flex-x--lazy-hilit-candidate))
