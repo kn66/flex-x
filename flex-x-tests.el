@@ -117,6 +117,20 @@
                                        'completions-common-part))
       (should (flex-x-tests--all-face-p candidate 'flex-x-highlight)))))
 
+(ert-deftest flex-x-default-highlight-threshold-follows-flex-api ()
+  (should (= flex-x-highlight-score-threshold
+             (if (fboundp 'completion--flex-cost) 0.55 0.2))))
+
+(ert-deftest flex-x-highlight-threshold-is-inclusive ()
+  (let* ((flex-x-highlight-score-threshold 0.2)
+         (at-threshold
+          (flex-x--apply-match-faces (copy-sequence "foo") '(:score 0.2)))
+         (below-threshold
+          (flex-x--apply-match-faces (copy-sequence "foo") '(:score 0.199))))
+    (should (flex-x-tests--all-face-p at-threshold 'flex-x-highlight))
+    (should-not (flex-x-tests--any-face-p below-threshold
+                                          'flex-x-highlight))))
+
 (ert-deftest flex-x-low-score-candidates-are-not-highlighted ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-match-functions nil)

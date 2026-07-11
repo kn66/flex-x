@@ -67,15 +67,16 @@
 This face intentionally does not set foreground or background colors."
   :group 'flex-x)
 
-(defcustom flex-x-highlight-score-threshold 0.05
+(defcustom flex-x-highlight-score-threshold
+  (if (fboundp 'completion--flex-cost) 0.55 0.2)
   "Minimum score required to highlight the whole candidate.
 
 Candidates below this score keep their ordinary completion faces, but
 still keep `completion-score' and `flex-x-score' text properties.
 
-The default is intentionally low because built-in flex scores are
-divided by candidate length, so good acronym-style matches often score
-around 0.05."
+The default is 0.2 for the Emacs 30 flex score and 0.55 when Emacs
+provides `completion--flex-cost'.  The two matching algorithms use
+different score scales."
   :type 'number
   :group 'flex-x)
 
@@ -416,7 +417,7 @@ Set this to nil to allow scanning every prefix candidate."
             (unless match
               (throw 'failed nil))
             (cl-incf score (or (plist-get match :score) 0.0))
-            (when-let ((match-cost (plist-get match :cost)))
+            (when-let* ((match-cost (plist-get match :cost)))
               (cl-incf cost match-cost)
               (cl-incf cost-count))
             (push match matches)))
@@ -459,11 +460,11 @@ Set this to nil to allow scanning every prefix candidate."
   "Destructively apply completion faces to CANDIDATE using MATCH."
   (let ((score (or (plist-get match :score) 0.0)))
     (dolist (term-match (plist-get match :matches))
-      (when-let ((regexp (plist-get term-match :regexp)))
+      (when-let* ((regexp (plist-get term-match :regexp)))
         (completion--hilit-from-re candidate regexp))
-      (when-let ((matches (plist-get term-match :matches)))
+      (when-let* ((matches (plist-get term-match :matches)))
         (flex-x--highlight-matches candidate matches))
-      (when-let ((ranges (plist-get term-match :ranges)))
+      (when-let* ((ranges (plist-get term-match :ranges)))
         (flex-x--highlight-ranges candidate ranges)))
     (when (and (> (length candidate) 0)
                (>= score flex-x-highlight-score-threshold))
@@ -473,8 +474,8 @@ Set this to nil to allow scanning every prefix candidate."
 
 (defun flex-x--lazy-hilit-candidate (candidate)
   "Destructively highlight CANDIDATE using its stored flex-x match."
-  (if-let ((match (and (> (length candidate) 0)
-                       (get-text-property 0 'flex-x--match candidate))))
+  (if-let* ((match (and (> (length candidate) 0)
+                        (get-text-property 0 'flex-x--match candidate))))
       (flex-x--apply-match-faces candidate match)
     candidate))
 
@@ -490,7 +491,7 @@ Set this to nil to allow scanning every prefix candidate."
       (put-text-property 0 1 'flex-x-score score copy)
       (when flex-matches
         (put-text-property 0 1 'flex-matches flex-matches copy))
-      (when-let ((cost (plist-get match :cost)))
+      (when-let* ((cost (plist-get match :cost)))
         (put-text-property 0 1 'flex-cost cost copy)
         (put-text-property 0 1 'flex-x-cost cost copy))
       (when lazy-hilit
@@ -606,8 +607,8 @@ accepted."
              (base-size (cdr seed))
              (candidates (car seed)))
         (when extra-matchers
-          (when-let ((extra-candidates (flex-x--extra-table-candidates
-                                        context table pred)))
+          (when-let* ((extra-candidates (flex-x--extra-table-candidates
+                                         context table pred)))
             (setq candidates (append candidates extra-candidates))))
         (setq candidates
               (flex-x--matched-candidates candidates match-context))

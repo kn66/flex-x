@@ -93,7 +93,8 @@ recently selected Corfu candidates before flex match quality:
 #+end_src
 
 High-score candidates are highlighted as a whole with ~flex-x-highlight~.
-The default threshold is ~0.05~; customize
+The default threshold is ~0.2~ with the Emacs 30 flex score and ~0.55~
+when Emacs provides flex cost matching. Customize
 ~flex-x-highlight-score-threshold~ to change it.
 
 * Regexp Expander
