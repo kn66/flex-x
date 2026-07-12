@@ -16,8 +16,8 @@ requirements, and non-goals. Put implementation details in tests, code, or
 - Annotate and highlight matches with standard completion properties and faces,
   including lazy highlighting when available.
 - Highlight a candidate as a whole with the package face `flex-x-highlight`
-  when every search term matches at the start of the candidate or at the start
-  of one of its separator-delimited words.
+  when every search term occurs contiguously in the candidate or matches a
+  concatenation of prefixes from consecutive separator-delimited words.
 - Use Corfu history for history ranking when `corfu-history-mode` is active
   outside the minibuffer, without requiring Corfu at load time.
 - Use Emacs flex cost information when available, including match positions for

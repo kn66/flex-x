@@ -31,7 +31,7 @@
 ;; - Space-separated AND filtering.
 ;; - Sorting by minibuffer or Corfu history and flex score.
 ;; - Standard completion highlighting and whole-candidate highlighting for
-;;   word-prefix matches, including lazy highlighting when available.
+;;   literal and word-prefix-sequence matches, including lazy highlighting.
 ;; - Optional regexp expanders for non-ASCII candidates, such as migemo or pyim.
 ;;
 ;; Add `flex-x' to `completion-styles' to enable it:
@@ -76,7 +76,7 @@
 
 (defface flex-x-highlight
   '((t :weight bold :underline t))
-  "Face used to highlight strong flex-x word-prefix matches.
+  "Face used to highlight strong flex-x matches.
 
 This face intentionally does not set foreground or background colors."
   :group 'flex-x)
@@ -257,17 +257,34 @@ Set this to nil to allow scanning every prefix candidate."
    (lambda () (flex-x--flex-regexp term))))
 
 (defun flex-x--highlight-regexp (term)
-  "Return regexp matching TERM after a candidate word separator."
-  (concat "[[:space:][:punct:]]" (regexp-quote term)))
+  "Return regexp matching TERM literally."
+  (regexp-quote term))
+
+(defun flex-x--prefix-sequence-regexp (term)
+  "Return regexp matching TERM across consecutive word prefixes."
+  (unless (string-match-p "[[:space:][:punct:]]" term)
+    (concat
+     "\\(?:\\`\\|[[:space:][:punct:]]\\)"
+     (regexp-quote (substring term 0 1))
+     (mapconcat
+      (lambda (index)
+        (let ((character (regexp-quote (substring term index (1+ index)))))
+          (concat "\\(?:" character
+                  "\\|[^[:space:][:punct:]]*[[:space:][:punct:]]+"
+                  character "\\)")))
+      (number-sequence 1 (1- (length term)))
+      ""))))
 
 (defun flex-x--whole-candidate-highlight-p (candidate match-context)
-  "Return non-nil when every search term starts a word in CANDIDATE."
+  "Return non-nil when every search term strongly matches CANDIDATE."
   (let ((case-fold-search completion-ignore-case)
         (target (flex-x--candidate-target candidate)))
-    (cl-loop for (term . regexp)
+    (cl-loop for (literal-regexp . prefix-sequence-regexp)
              in (flex-x--match-context-highlight-patterns match-context)
-             always (or (string-prefix-p term target completion-ignore-case)
-                        (string-match-p regexp target)))))
+             always
+             (or (string-match-p literal-regexp target)
+                 (and prefix-sequence-regexp
+                      (string-match-p prefix-sequence-regexp target))))))
 
 (defun flex-x--lazy-hilit-p ()
   "Return non-nil if completion frontend supports lazy highlighting."
@@ -334,7 +351,8 @@ Set this to nil to allow scanning every prefix candidate."
    :flex-regexp-cache (make-hash-table :test #'equal)
    :highlight-patterns
    (mapcar (lambda (term)
-             (cons term (flex-x--highlight-regexp term)))
+             (cons (flex-x--highlight-regexp term)
+                   (flex-x--prefix-sequence-regexp term)))
            terms)))
 
 (defun flex-x--normalize-extra-match (value)

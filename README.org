@@ -9,8 +9,8 @@ completion style.
 - Sort by minibuffer history, then flex match quality.
 - Sort by Corfu history outside the minibuffer when ~corfu-history-mode~ is
   active.
-- Highlight matches with standard completion faces, and highlight candidates
-  whose search terms match word prefixes as a whole with ~flex-x-highlight~.
+- Highlight matches with standard completion faces, and highlight strong
+  literal or word-prefix-sequence matches as a whole with ~flex-x-highlight~.
 - Add extra matchers or regexp expanders for non-ASCII candidates, for example
   migemo or pyim.
 
@@ -93,11 +93,12 @@ recently selected Corfu candidates before flex match quality:
 #+end_src
 
 Candidates are highlighted as a whole with ~flex-x-highlight~ when every
-space-separated search term matches at the start of the candidate or after a
-separator such as ~-~, ~_~, ~/~, ~.~, or whitespace. Thus ~agent~ highlights
-both ~agent-shell~ and ~gnus-agentize~, and ~sw bu~ highlights
-~switch-to-buffer~. Non-contiguous flex matches such as ~agt~ in
-~agent-shell~ keep only the standard matching-character faces.
+space-separated search term either occurs contiguously anywhere in the
+candidate or matches a concatenation of prefixes from consecutive words.
+Words are separated by punctuation or whitespace. Thus ~load~ highlights
+~org-reload~, while ~loadfile~ and ~lofile~ highlight ~load-file~ and
+~org-babel-load-file~. Non-contiguous matches within a word, such as ~agt~ in
+~agent-shell~, keep only the standard matching-character faces.
 
 * Regexp Expander
 

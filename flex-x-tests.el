@@ -152,15 +152,15 @@
            (candidate (car completions)))
       (should (flex-x-tests--all-face-p candidate 'flex-x-highlight)))))
 
-(ert-deftest flex-x-term-inside-word-does-not-highlight-whole-candidate ()
+(ert-deftest flex-x-contiguous-term-inside-word-highlights-whole-candidate ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
-                         "agent" '("secretagent") nil 5))
+                         "load" '("org-reload") nil 4))
            (candidate (car completions)))
       (should candidate)
-      (should-not (flex-x-tests--any-face-p candidate 'flex-x-highlight)))))
+      (should (flex-x-tests--all-face-p candidate 'flex-x-highlight)))))
 
 (ert-deftest flex-x-word-prefix-highlight-obeys-completion-ignore-case ()
   (let ((completion-styles '(flex-x))
@@ -181,13 +181,54 @@
            (candidate (car completions)))
       (should (flex-x-tests--all-face-p candidate 'flex-x-highlight)))))
 
+(ert-deftest flex-x-concatenated-word-prefixes-highlight-whole-candidate ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (dolist (input '("loadfile" "lofile"))
+      (let* ((completions (completion-all-completions
+                           input '("load-file") nil (length input)))
+             (candidate (car completions)))
+        (should candidate)
+        (should (flex-x-tests--all-face-p candidate 'flex-x-highlight))))))
+
+(ert-deftest flex-x-word-prefix-sequence-may-start-after-earlier-words ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (let* ((completions (completion-all-completions
+                         "lofile" '("org-babel-load-file") nil 6))
+           (candidate (car completions)))
+      (should candidate)
+      (should (flex-x-tests--all-face-p candidate 'flex-x-highlight)))))
+
+(ert-deftest flex-x-word-prefix-sequence-does-not-skip-words ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (let* ((completions (completion-all-completions
+                         "lofile" '("htmlfontify-load-rgb-file") nil 6))
+           (candidate (car completions)))
+      (should candidate)
+      (should-not (flex-x-tests--any-face-p candidate 'flex-x-highlight)))))
+
+(ert-deftest flex-x-word-prefix-sequence-requires-word-prefixes ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (let* ((completions (completion-all-completions
+                         "loadfile" '("package-upload-file") nil 8))
+           (candidate (car completions)))
+      (should candidate)
+      (should-not (flex-x-tests--any-face-p candidate 'flex-x-highlight)))))
+
 (ert-deftest flex-x-noncontiguous-flex-match-is-not-highlighted-as-a-whole ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
-                         "stb"
-                         '("switch-to-buffer")
+                         "agt"
+                         '("agent-shell")
                          nil 3))
            (candidate (car completions)))
       (should (numberp (get-text-property 0 'completion-score candidate)))
@@ -196,12 +237,12 @@
       (should (flex-x-tests--face-at-p candidate 0
                                        'completions-common-part)))))
 
-(ert-deftest flex-x-all-terms-must-match-word-prefixes-for-whole-highlight ()
+(ert-deftest flex-x-all-terms-must-strongly-match-for-whole-highlight ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
-                         "sw stb" '("switch-to-buffer") nil 6))
+                         "sw agt" '("switch-to-buffer-agent") nil 6))
            (candidate (car completions)))
       (should candidate)
       (should-not (flex-x-tests--any-face-p candidate 'flex-x-highlight)))))
