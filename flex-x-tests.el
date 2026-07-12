@@ -1,6 +1,7 @@
 ;;; flex-x-tests.el --- Tests for flex-x -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026 kn66
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;; This file is free software: you can redistribute it and/or modify
 ;; it under the terms of the GNU General Public License as published by

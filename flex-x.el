@@ -1,8 +1,9 @@
 ;;; flex-x.el --- Extended flex completion style -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026 kn66
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
-;; Author: kn66
+;; Author: kn66 <https://github.com/kn66>
 ;; Assisted-by: Codex:GPT-5
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "30.1"))
@@ -44,23 +45,11 @@
 (require 'minibuffer)
 (require 'subr-x)
 
-(declare-function completion--flex-score "minibuffer"
-                  (str regexp &optional dont-error))
+;; These functions are available only in newer Emacs versions.  Their calls
+;; are guarded by `fboundp' so flex-x can still support Emacs 30.
 (declare-function completion--flex-cost "minibuffer"
                   (pat str &optional dont-error) t)
-(declare-function completion--hilit-from-re "minibuffer"
-                  (string regexp &optional point-idx))
-(declare-function completion-flex--make-flex-pattern "minibuffer"
-                  (pattern))
 (declare-function completion-lazy-hilit-p "minibuffer" () t)
-(declare-function completion-pcm--filename-try-filter "minibuffer"
-                  (all))
-(declare-function completion-pcm--optimize-pattern "minibuffer"
-                  (pattern))
-(declare-function completion-pcm--pattern->regex "minibuffer"
-                  (pattern &optional group))
-(declare-function minibuffer--sort-preprocess-history "minibuffer"
-                  (base))
 
 (defvar completion-lazy-hilit)
 (defvar completion-lazy-hilit-fn)
@@ -425,7 +414,7 @@ Set this to nil to allow scanning every prefix candidate."
   (let ((target (flex-x--candidate-target candidate)))
     (if (flex-x--flex-cost-p)
         (or (flex-x--precomputed-flex-match term candidate target)
-            (if-let* ((cost-match (funcall 'completion--flex-cost
+            (if-let* ((cost-match (funcall #'completion--flex-cost
                                            term target t)))
                 (let ((cost (car cost-match))
                       (matches (cdr cost-match)))
