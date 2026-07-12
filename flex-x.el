@@ -1,8 +1,9 @@
 ;;; flex-x.el --- Extended flex completion style -*- lexical-binding: t; -*-
 
-;; Copyright (C) 2026
+;; Copyright (C) 2026 kn66
 
 ;; Author: kn66
+;; Assisted-by: Codex:GPT-5
 ;; Version: 0.1.0
 ;; Package-Requires: ((emacs "30.1"))
 ;; Keywords: convenience, matching
