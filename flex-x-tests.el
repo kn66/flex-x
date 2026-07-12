@@ -1,5 +1,20 @@
 ;;; flex-x-tests.el --- Tests for flex-x -*- lexical-binding: t; -*-
 
+;; Copyright (C) 2026 kn66
+
+;; This file is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This file is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this file.  If not, see <https://www.gnu.org/licenses/>.
+
 ;;; Code:
 
 (require 'ert)
@@ -117,21 +132,56 @@
                                        'completions-common-part))
       (should (flex-x-tests--all-face-p candidate 'flex-x-highlight)))))
 
-(ert-deftest flex-x-default-highlight-threshold-follows-flex-api ()
-  (should (= flex-x-highlight-score-threshold
-             (if (fboundp 'completion--flex-cost) 0.55 0.2))))
+(ert-deftest flex-x-long-candidate-starting-with-term-is-highlighted ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (let* ((completions (completion-all-completions
+                         "agent"
+                         '("agent-shell-new-downloads-shell")
+                         nil 5))
+           (candidate (car completions)))
+      (should (flex-x-tests--all-face-p candidate 'flex-x-highlight)))))
 
-(ert-deftest flex-x-highlight-threshold-is-inclusive ()
-  (let* ((flex-x-highlight-score-threshold 0.2)
-         (at-threshold
-          (flex-x--apply-match-faces (copy-sequence "foo") '(:score 0.2)))
-         (below-threshold
-          (flex-x--apply-match-faces (copy-sequence "foo") '(:score 0.199))))
-    (should (flex-x-tests--all-face-p at-threshold 'flex-x-highlight))
-    (should-not (flex-x-tests--any-face-p below-threshold
-                                          'flex-x-highlight))))
+(ert-deftest flex-x-term-after-separator-highlights-whole-candidate ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (let* ((completions (completion-all-completions
+                         "agent" '("gnus-agentize") nil 5))
+           (candidate (car completions)))
+      (should (flex-x-tests--all-face-p candidate 'flex-x-highlight)))))
 
-(ert-deftest flex-x-low-score-candidates-are-not-highlighted ()
+(ert-deftest flex-x-term-inside-word-does-not-highlight-whole-candidate ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (let* ((completions (completion-all-completions
+                         "agent" '("secretagent") nil 5))
+           (candidate (car completions)))
+      (should candidate)
+      (should-not (flex-x-tests--any-face-p candidate 'flex-x-highlight)))))
+
+(ert-deftest flex-x-word-prefix-highlight-obeys-completion-ignore-case ()
+  (let ((completion-styles '(flex-x))
+        (completion-ignore-case t)
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (let* ((completions (completion-all-completions
+                         "agent" '("Gnus-Agentize") nil 5))
+           (candidate (car completions)))
+      (should (flex-x-tests--all-face-p candidate 'flex-x-highlight)))))
+
+(ert-deftest flex-x-all-terms-at-word-prefixes-highlight-whole-candidate ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (let* ((completions (completion-all-completions
+                         "sw bu" '("switch-to-buffer") nil 5))
+           (candidate (car completions)))
+      (should (flex-x-tests--all-face-p candidate 'flex-x-highlight)))))
+
+(ert-deftest flex-x-noncontiguous-flex-match-is-not-highlighted-as-a-whole ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
@@ -145,6 +195,16 @@
       (should-not (flex-x-tests--any-face-p candidate 'flex-x-highlight))
       (should (flex-x-tests--face-at-p candidate 0
                                        'completions-common-part)))))
+
+(ert-deftest flex-x-all-terms-must-match-word-prefixes-for-whole-highlight ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (let* ((completions (completion-all-completions
+                         "sw stb" '("switch-to-buffer") nil 6))
+           (candidate (car completions)))
+      (should candidate)
+      (should-not (flex-x-tests--any-face-p candidate 'flex-x-highlight)))))
 
 (ert-deftest flex-x-lazy-hilit-defers-faces ()
   (let ((completion-styles '(flex-x))

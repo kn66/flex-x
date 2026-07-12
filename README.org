@@ -9,8 +9,8 @@ completion style.
 - Sort by minibuffer history, then flex match quality.
 - Sort by Corfu history outside the minibuffer when ~corfu-history-mode~ is
   active.
-- Highlight matches with standard completion faces, and highlight high-score
-  candidates as a whole with ~flex-x-highlight~.
+- Highlight matches with standard completion faces, and highlight candidates
+  whose search terms match word prefixes as a whole with ~flex-x-highlight~.
 - Add extra matchers or regexp expanders for non-ASCII candidates, for example
   migemo or pyim.
 
@@ -92,10 +92,12 @@ recently selected Corfu candidates before flex match quality:
     (corfu-history-mode 1))
 #+end_src
 
-High-score candidates are highlighted as a whole with ~flex-x-highlight~.
-The default threshold is ~0.2~ with the Emacs 30 flex score and ~0.55~
-when Emacs provides flex cost matching. Customize
-~flex-x-highlight-score-threshold~ to change it.
+Candidates are highlighted as a whole with ~flex-x-highlight~ when every
+space-separated search term matches at the start of the candidate or after a
+separator such as ~-~, ~_~, ~/~, ~.~, or whitespace. Thus ~agent~ highlights
+both ~agent-shell~ and ~gnus-agentize~, and ~sw bu~ highlights
+~switch-to-buffer~. Non-contiguous flex matches such as ~agt~ in
+~agent-shell~ keep only the standard matching-character faces.
 
 * Regexp Expander
 

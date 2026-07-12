@@ -9,6 +9,19 @@
 ;; Keywords: convenience, matching
 ;; URL: https://github.com/kn66/flex-x
 
+;; This file is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU General Public License as published by
+;; the Free Software Foundation, either version 3 of the License, or
+;; (at your option) any later version.
+
+;; This file is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this file.  If not, see <https://www.gnu.org/licenses/>.
+
 ;;; Commentary:
 
 ;; flex-x adds a completion style based on the built-in `flex' style.
@@ -18,7 +31,7 @@
 ;; - Space-separated AND filtering.
 ;; - Sorting by minibuffer or Corfu history and flex score.
 ;; - Standard completion highlighting and whole-candidate highlighting for
-;;   high-score matches, including lazy highlighting when available.
+;;   word-prefix matches, including lazy highlighting when available.
 ;; - Optional regexp expanders for non-ASCII candidates, such as migemo or pyim.
 ;;
 ;; Add `flex-x' to `completion-styles' to enable it:
@@ -63,22 +76,9 @@
 
 (defface flex-x-highlight
   '((t :weight bold :underline t))
-  "Face used to highlight high-score flex-x candidates.
+  "Face used to highlight strong flex-x word-prefix matches.
 
 This face intentionally does not set foreground or background colors."
-  :group 'flex-x)
-
-(defcustom flex-x-highlight-score-threshold
-  (if (fboundp 'completion--flex-cost) 0.55 0.2)
-  "Minimum score required to highlight the whole candidate.
-
-Candidates below this score keep their ordinary completion faces, but
-still keep `completion-score' and `flex-x-score' text properties.
-
-The default is 0.2 for the Emacs 30 flex score and 0.55 when Emacs
-provides `completion--flex-cost'.  The two matching algorithms use
-different score scales."
-  :type 'number
   :group 'flex-x)
 
 (defcustom flex-x-split-regexp "[[:space:]]+"
@@ -173,7 +173,8 @@ Set this to nil to allow scanning every prefix candidate."
   terms
   prefix
   extra-pattern-cache
-  flex-regexp-cache)
+  flex-regexp-cache
+  highlight-patterns)
 
 (defun flex-x--split (string)
   "Split STRING into non-empty flex-x search terms."
@@ -255,6 +256,19 @@ Set this to nil to allow scanning every prefix candidate."
    term
    (lambda () (flex-x--flex-regexp term))))
 
+(defun flex-x--highlight-regexp (term)
+  "Return regexp matching TERM after a candidate word separator."
+  (concat "[[:space:][:punct:]]" (regexp-quote term)))
+
+(defun flex-x--whole-candidate-highlight-p (candidate match-context)
+  "Return non-nil when every search term starts a word in CANDIDATE."
+  (let ((case-fold-search completion-ignore-case)
+        (target (flex-x--candidate-target candidate)))
+    (cl-loop for (term . regexp)
+             in (flex-x--match-context-highlight-patterns match-context)
+             always (or (string-prefix-p term target completion-ignore-case)
+                        (string-match-p regexp target)))))
+
 (defun flex-x--lazy-hilit-p ()
   "Return non-nil if completion frontend supports lazy highlighting."
   (if (fboundp 'completion-lazy-hilit-p)
@@ -317,7 +331,11 @@ Set this to nil to allow scanning every prefix candidate."
    :terms terms
    :prefix prefix
    :extra-pattern-cache (make-hash-table :test #'equal)
-   :flex-regexp-cache (make-hash-table :test #'equal)))
+   :flex-regexp-cache (make-hash-table :test #'equal)
+   :highlight-patterns
+   (mapcar (lambda (term)
+             (cons term (flex-x--highlight-regexp term)))
+           terms)))
 
 (defun flex-x--normalize-extra-match (value)
   "Normalize an extra matcher return VALUE to a plist."
@@ -426,6 +444,7 @@ Set this to nil to allow scanning every prefix candidate."
               :cost (and (= cost-count term-count)
                          (> cost-count 0)
                          (/ cost cost-count))
+              :match-context match-context
               :matches (nreverse matches))))))
 
 (defun flex-x--highlight-ranges (candidate ranges)
@@ -459,18 +478,18 @@ Set this to nil to allow scanning every prefix candidate."
 
 (defun flex-x--apply-match-faces (candidate match)
   "Destructively apply completion faces to CANDIDATE using MATCH."
-  (let ((score (or (plist-get match :score) 0.0)))
-    (dolist (term-match (plist-get match :matches))
-      (when-let* ((regexp (plist-get term-match :regexp)))
-        (completion--hilit-from-re candidate regexp))
-      (when-let* ((matches (plist-get term-match :matches)))
-        (flex-x--highlight-matches candidate matches))
-      (when-let* ((ranges (plist-get term-match :ranges)))
-        (flex-x--highlight-ranges candidate ranges)))
-    (when (and (> (length candidate) 0)
-               (>= score flex-x-highlight-score-threshold))
-      (add-face-text-property 0 (length candidate) 'flex-x-highlight
-                              t candidate)))
+  (dolist (term-match (plist-get match :matches))
+    (when-let* ((regexp (plist-get term-match :regexp)))
+      (completion--hilit-from-re candidate regexp))
+    (when-let* ((matches (plist-get term-match :matches)))
+      (flex-x--highlight-matches candidate matches))
+    (when-let* ((ranges (plist-get term-match :ranges)))
+      (flex-x--highlight-ranges candidate ranges)))
+  (when (and (> (length candidate) 0)
+             (flex-x--whole-candidate-highlight-p
+              candidate (plist-get match :match-context)))
+    (add-face-text-property 0 (length candidate) 'flex-x-highlight
+                            t candidate))
   candidate)
 
 (defun flex-x--lazy-hilit-candidate (candidate)

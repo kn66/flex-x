@@ -15,11 +15,9 @@ requirements, and non-goals. Put implementation details in tests, code, or
   existing metadata sort functions.
 - Annotate and highlight matches with standard completion properties and faces,
   including lazy highlighting when available.
-- Highlight candidates whose flex quality exceeds the configured threshold with
-  the package face `flex-x-highlight`.
-- Default the whole-candidate highlight threshold to `0.2` for the Emacs 30
-  flex score and `0.55` when Emacs provides flex cost matching, whose score uses
-  a different scale.
+- Highlight a candidate as a whole with the package face `flex-x-highlight`
+  when every search term matches at the start of the candidate or at the start
+  of one of its separator-delimited words.
 - Use Corfu history for history ranking when `corfu-history-mode` is active
   outside the minibuffer, without requiring Corfu at load time.
 - Use Emacs flex cost information when available, including match positions for
