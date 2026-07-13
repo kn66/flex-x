@@ -45,12 +45,6 @@
 (require 'minibuffer)
 (require 'subr-x)
 
-;; These functions are available only in newer Emacs versions.  Their calls
-;; are guarded by `fboundp' so flex-x can still support Emacs 30.
-(declare-function completion--flex-cost "minibuffer"
-                  (pat str &optional dont-error) t)
-(declare-function completion-lazy-hilit-p "minibuffer" () t)
-
 (defvar completion-lazy-hilit)
 (defvar completion-lazy-hilit-fn)
 (defvar corfu-history)
@@ -282,10 +276,6 @@ Set this to nil to allow scanning every prefix candidate."
     (and (boundp 'completion-lazy-hilit)
          completion-lazy-hilit)))
 
-(defun flex-x--flex-cost-p ()
-  "Return non-nil when this Emacs provides flex cost matching."
-  (fboundp 'completion--flex-cost))
-
 (defun flex-x--score-from-cost (cost candidate)
   "Return a score-like quality value from COST for CANDIDATE."
   (/ 1.0 (+ 1.0 (/ (float cost) (max 1 (length candidate))))))
@@ -412,7 +402,7 @@ Set this to nil to allow scanning every prefix candidate."
 (defun flex-x--match-term (term candidate match-context)
   "Return match information when TERM matches CANDIDATE."
   (let ((target (flex-x--candidate-target candidate)))
-    (if (flex-x--flex-cost-p)
+    (if (fboundp 'completion--flex-cost)
         (or (flex-x--precomputed-flex-match term candidate target)
             (if-let* ((cost-match (funcall #'completion--flex-cost
                                            term target t)))
@@ -797,7 +787,7 @@ accepted."
   (let ((rank-table (flex-x--history-rank-table match-context))
         (terms (and match-context
                     (flex-x--match-context-terms match-context)))
-        (use-cost (flex-x--flex-cost-p))
+        (use-cost (fboundp 'completion--flex-cost))
         records)
     (cl-loop for candidate in candidates
              for index from 0
