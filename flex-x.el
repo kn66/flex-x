@@ -258,16 +258,31 @@ Set this to nil to allow scanning every prefix candidate."
       (number-sequence 1 (1- (length term)))
       ""))))
 
+(defun flex-x--camel-case-target (target)
+  "Return TARGET with separators inserted at CamelCase boundaries."
+  (let ((case-fold-search nil))
+    (replace-regexp-in-string
+     "\\([[:lower:]]\\)\\([[:upper:]]\\)" "\\1 \\2"
+     (replace-regexp-in-string
+      "\\([[:upper:]]\\)\\([[:upper:]][[:lower:]]\\)" "\\1 \\2"
+      target t)
+     t)))
+
 (defun flex-x--whole-candidate-highlight-p (candidate match-context)
   "Return non-nil when every search term strongly matches CANDIDATE."
   (let ((case-fold-search completion-ignore-case)
-        (target (flex-x--candidate-target candidate)))
+        (target (flex-x--candidate-target candidate))
+        prefix-target)
     (cl-loop for (literal-regexp . prefix-sequence-regexp)
              in (flex-x--match-context-highlight-patterns match-context)
              always
              (or (string-match-p literal-regexp target)
                  (and prefix-sequence-regexp
-                      (string-match-p prefix-sequence-regexp target))))))
+                      (string-match-p
+                       prefix-sequence-regexp
+                       (or prefix-target
+                           (setq prefix-target
+                                 (flex-x--camel-case-target target)))))))))
 
 (defun flex-x--lazy-hilit-p ()
   "Return non-nil if completion frontend supports lazy highlighting."

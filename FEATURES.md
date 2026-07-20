@@ -17,7 +17,8 @@ requirements, and non-goals. Put implementation details in tests, code, or
   including lazy highlighting when available.
 - Highlight a candidate as a whole with the package face `flex-x-highlight`
   when every search term occurs contiguously in the candidate or matches a
-  concatenation of prefixes from consecutive separator-delimited words.
+  concatenation of prefixes from consecutive words delimited by separators or
+  CamelCase boundaries.
 - Use Corfu history for history ranking when `corfu-history-mode` is active
   outside the minibuffer, without requiring Corfu at load time.
 - Use Emacs flex cost information when available, including match positions for

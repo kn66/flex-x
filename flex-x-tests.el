@@ -193,6 +193,21 @@
         (should candidate)
         (should (flex-x-tests--all-face-p candidate 'flex-x-highlight))))))
 
+(ert-deftest flex-x-camel-case-prefixes-highlight-whole-candidate ()
+  (let ((completion-styles '(flex-x))
+        (completion-ignore-case t)
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (dolist (case '(("lofi" "loadFile")
+                    ("hpr" "HTTPParserResult")))
+      (let* ((input (car case))
+             (candidate-string (cadr case))
+             (completions (completion-all-completions
+                           input (list candidate-string) nil (length input)))
+             (candidate (car completions)))
+        (should candidate)
+        (should (flex-x-tests--all-face-p candidate 'flex-x-highlight))))))
+
 (ert-deftest flex-x-word-prefix-sequence-may-start-after-earlier-words ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-match-functions nil)
@@ -209,6 +224,17 @@
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "lofile" '("htmlfontify-load-rgb-file") nil 6))
+           (candidate (car completions)))
+      (should candidate)
+      (should-not (flex-x-tests--any-face-p candidate 'flex-x-highlight)))))
+
+(ert-deftest flex-x-camel-case-prefix-sequence-does-not-skip-words ()
+  (let ((completion-styles '(flex-x))
+        (completion-ignore-case t)
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (let* ((completions (completion-all-completions
+                         "lofi" '("loadRgbFile") nil 4))
            (candidate (car completions)))
       (should candidate)
       (should-not (flex-x-tests--any-face-p candidate 'flex-x-highlight)))))
