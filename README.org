@@ -38,10 +38,12 @@ match highlighting, and optional extra matching for non-ASCII candidates.
 
 * Setup
 
+~flex-x~ is available from [[https://melpa.org/#/flex-x][MELPA]].  After enabling the MELPA
+package archive, install and configure it with ~use-package~:
+
 #+begin_src emacs-lisp
   (use-package flex-x
-    :vc ( :url "https://github.com/kn66/flex-x"
-          :rev :newest)
+    :ensure t
     :config
     (setopt completion-styles '(flex-x basic)))
 #+end_src
