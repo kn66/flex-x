@@ -22,18 +22,17 @@ completion style.
 ~flex-x~ keeps the standard completion UI while adding AND-style filtering,
 match highlighting, and optional extra matching for non-ASCII candidates.
 
-#+DOWNLOADED: screenshot @ 2026-06-07 08:36:20
-#+caption: Completion candidates are filtered and sorted by flex match quality, with matching parts highlighted.
-[[file:Screenshots/2026-06-07_08-36-20_screenshot.png]]
+#+caption: Space-separated terms filter candidates with AND, while strong matches are emphasized above looser flex matches.
+[[file:Screenshots/flex-x-and-filtering.png]]
 
+#+caption: Before selecting ~nano-vertico-mode~, flex match quality places it below stronger matches.
+[[file:Screenshots/flex-x-history-before.png]]
 
-#+DOWNLOADED: screenshot @ 2026-06-07 08:37:47
-#+caption: Compact completion popups show the same match highlights on each candidate.
-[[file:Screenshots/2026-06-07_08-37-47_screenshot.png]]
+#+caption: On the next invocation, completion history promotes the previously selected ~nano-vertico-mode~ candidate.
+[[file:Screenshots/flex-x-history-after.png]]
 
-#+DOWNLOADED: screenshot @ 2026-06-07 08:46:08
-#+caption: Extra matchers can surface non-ASCII candidates, such as Japanese text matched from romanized input.
-[[file:Screenshots/2026-06-07_08-46-08_screenshot.png]]
+#+caption: With migemo configured as an extra regexp expander, ASCII input can match Japanese candidates.
+[[file:Screenshots/flex-x-migemo.png]]
 
 
 * Setup
