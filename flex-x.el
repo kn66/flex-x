@@ -150,11 +150,13 @@ Set this to nil to allow scanning every prefix candidate."
   suffix
   field
   field-point
-  terms)
+  terms
+  literal-terms-p)
 
 (cl-defstruct flex-x--match-context
   terms
   prefix
+  literal-terms-p
   extra-pattern-cache
   flex-regexp-cache
   highlight-patterns)
@@ -178,7 +180,8 @@ Set this to nil to allow scanning every prefix candidate."
      :suffix (substring afterpoint end)
      :field field
      :field-point (length field-before)
-     :terms (flex-x--split field))))
+     :terms (flex-x--split field)
+     :literal-terms-p (string-match-p flex-x-split-regexp field))))
 
 (defun flex-x--context-completion-string (context candidate)
   "Return full completion string for CANDIDATE in CONTEXT."
@@ -336,11 +339,12 @@ Set this to nil to allow scanning every prefix candidate."
   (or flex-x-extra-match-functions
       (flex-x--extra-pattern-functions)))
 
-(defun flex-x--make-match-context (terms prefix)
-  "Return a match context for TERMS and PREFIX."
+(defun flex-x--make-match-context (terms prefix literal-terms-p)
+  "Return a match context for TERMS, PREFIX and LITERAL-TERMS-P."
   (make-flex-x--match-context
    :terms terms
    :prefix prefix
+   :literal-terms-p literal-terms-p
    :extra-pattern-cache (make-hash-table :test #'equal)
    :flex-regexp-cache (make-hash-table :test #'equal)
    :highlight-patterns
@@ -414,24 +418,41 @@ Set this to nil to allow scanning every prefix candidate."
     (or (flex-x--extra-function-match term candidate)
         (flex-x--extra-pattern-match term candidate match-context))))
 
+(defun flex-x--builtin-flex-match (term candidate target match-context)
+  "Return built-in flex match information for TERM and CANDIDATE's TARGET."
+  (if (fboundp 'completion--flex-cost)
+      (or (flex-x--precomputed-flex-match term candidate target)
+          (when-let* ((cost-match (funcall #'completion--flex-cost
+                                           term target t)))
+            (let ((cost (car cost-match))
+                  (matches (cdr cost-match)))
+              (list :score (flex-x--score-from-cost cost target)
+                    :cost cost
+                    :matches matches))))
+    (let* ((regexp (flex-x--cached-flex-regexp term match-context))
+           (score (completion--flex-score target regexp t)))
+      (when score
+        (list :score score :regexp regexp)))))
+
+(defun flex-x--literal-match (term candidate target match-context)
+  "Return literal match information for TERM in CANDIDATE's TARGET."
+  (let ((case-fold-search completion-ignore-case))
+    (when (string-match (regexp-quote term) target)
+      (let ((beg (match-beginning 0))
+            (end (match-end 0))
+            (match (flex-x--builtin-flex-match
+                    term candidate target match-context)))
+        (list :score (plist-get match :score)
+              :cost (plist-get match :cost)
+              :ranges (list (cons beg end)))))))
+
 (defun flex-x--match-term (term candidate match-context)
   "Return match information when TERM matches CANDIDATE."
   (let ((target (flex-x--candidate-target candidate)))
-    (if (fboundp 'completion--flex-cost)
-        (or (flex-x--precomputed-flex-match term candidate target)
-            (if-let* ((cost-match (funcall #'completion--flex-cost
-                                           term target t)))
-                (let ((cost (car cost-match))
-                      (matches (cdr cost-match)))
-                  (list :score (flex-x--score-from-cost cost target)
-                        :cost cost
-                        :matches matches))
-              (flex-x--extra-match term target match-context)))
-      (let* ((regexp (flex-x--cached-flex-regexp term match-context))
-             (score (completion--flex-score target regexp t)))
-        (if score
-            (list :score score :regexp regexp)
-          (flex-x--extra-match term target match-context))))))
+    (or (if (flex-x--match-context-literal-terms-p match-context)
+            (flex-x--literal-match term candidate target match-context)
+          (flex-x--builtin-flex-match term candidate target match-context))
+        (flex-x--extra-match term target match-context))))
 
 (defun flex-x--match-candidate (candidate match-context)
   "Return aggregate match information for CANDIDATE and MATCH-CONTEXT."
@@ -627,8 +648,9 @@ accepted."
   (let* ((context (flex-x--context string table pred point))
          (terms (flex-x--context-terms context))
          (match-context (flex-x--make-match-context
-                         terms
-                         (flex-x--context-prefix context)))
+                          terms
+                          (flex-x--context-prefix context)
+                          (flex-x--context-literal-terms-p context)))
          (extra-matchers (flex-x--extra-matchers-p)))
     (setq flex-x--last-match-context match-context)
     (if (null terms)
@@ -692,12 +714,14 @@ accepted."
   (let* ((context (flex-x--context string table pred point))
          (terms (flex-x--context-terms context))
          (match-context (flex-x--make-match-context
-                         terms
-                         (flex-x--context-prefix context))))
+                          terms
+                          (flex-x--context-prefix context)
+                          (flex-x--context-literal-terms-p context))))
     (setq flex-x--last-match-context match-context)
     (if (or (null terms)
-            (and (= (length terms) 1)
-                 (not (flex-x--extra-matchers-p))))
+             (and (not (flex-x--context-literal-terms-p context))
+                  (= (length terms) 1)
+                  (not (flex-x--extra-matchers-p))))
         (completion-flex-try-completion string table pred point)
       (pcase-let ((`(,candidates . ,_base-size)
                    (flex-x--matching-candidates string table pred point)))

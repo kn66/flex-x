@@ -5,7 +5,8 @@ completion style.
 
 * Features
 
-- Space-separated AND filtering.
+- Built-in flex matching for a single term, switching to order-independent
+  literal AND filtering after a space is entered.
 - Sort by minibuffer history, then flex match quality.
 - Sort by Corfu history outside the minibuffer when ~corfu-history-mode~ is
   active.
@@ -19,8 +20,9 @@ completion style.
 :ID:       bc64ca3a-d248-4608-be1e-a2e45bc9af60
 :END:
 
-~flex-x~ keeps the standard completion UI while adding AND-style filtering,
-match highlighting, and optional extra matching for non-ASCII candidates.
+~flex-x~ keeps the standard completion UI while adding literal AND-style
+filtering after a space, match highlighting, and optional extra matching for
+non-ASCII candidates.
 
 #+caption: Space-separated terms filter candidates with AND, while strong matches are emphasized above looser flex matches.
 [[file:Screenshots/flex-x-and-filtering.png]]
@@ -76,6 +78,10 @@ For pyim-style matching:
 By default, extra matching is called only for candidates containing
 non-ASCII characters. Customize ~flex-x-extra-match-nonascii-only~ if
 you want it to run for every candidate.
+
+Before a space is entered, the input uses built-in flex matching.  After a
+space is entered, every non-empty term must match as a literal substring or by
+one of the configured extra matchers.  Terms may occur in any order.
 
 Extra matching scans up to ~flex-x-extra-match-candidate-limit~
 raw candidates for the current completion prefix. The default limit is

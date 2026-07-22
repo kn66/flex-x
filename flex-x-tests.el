@@ -81,16 +81,56 @@
   (should (eq (get 'flex-x 'completion--adjust-metadata)
               #'flex-x--adjust-metadata)))
 
-(ert-deftest flex-x-space-separated-terms-filter-with-and ()
+(ert-deftest flex-x-space-separated-terms-use-order-independent-literals ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (should (equal (flex-x-tests--items
                     (completion-all-completions
-                     "ff pr"
-                     '("find-file" "project-find-file" "switch-to-buffer")
-                     nil 5))
+                     "find pro"
+                     '("project-find-file" "project-fuzzy-file"
+                       "switch-to-buffer")
+                     nil 8))
                    '("project-find-file")))))
+
+(ert-deftest flex-x-space-separated-terms-reject-fuzzy-only-matches ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (should-not (completion-all-completions
+                 "ff pro" '("project-find-file") nil 6))))
+
+(ert-deftest flex-x-trailing-space-switches-to-literal-matching ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (should-not (completion-all-completions
+                 "ff " '("find-file") nil 3))))
+
+(ert-deftest flex-x-literal-terms-keep-extra-matcher-alternatives ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions
+         (list (lambda (term candidate)
+                 (and (string= term "tokyo")
+                      (string-match-p "東京" candidate)))))
+        (flex-x-extra-pattern-function nil)
+        (flex-x-extra-match-nonascii-only t))
+    (should (equal (flex-x-tests--items
+                    (completion-all-completions
+                     "tokyo file" '("東京-file" "東京-buffer") nil 10))
+                   '("東京-file")))))
+
+(ert-deftest flex-x-literal-terms-keep-extra-pattern-alternatives ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function
+         (lambda (term)
+           (and (string= term "tokyo") "東京")))
+        (flex-x-extra-match-nonascii-only t))
+    (should (equal (flex-x-tests--items
+                    (completion-all-completions
+                     "tokyo file" '("東京-file" "東京-buffer") nil 10))
+                   '("東京-file")))))
 
 (ert-deftest flex-x-skips-extra-candidate-scan-without-extra-matchers ()
   (let ((completion-styles '(flex-x))
@@ -266,10 +306,14 @@
 
 (ert-deftest flex-x-all-terms-must-strongly-match-for-whole-highlight ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
-        (flex-x-extra-pattern-function nil))
+        (flex-x-extra-match-functions
+         (list (lambda (term candidate)
+                 (and (string= term "agt")
+                      (string= candidate "switch-to-buffer-agent")))))
+        (flex-x-extra-pattern-function nil)
+        (flex-x-extra-match-nonascii-only nil))
     (let* ((completions (completion-all-completions
-                         "sw agt" '("switch-to-buffer-agent") nil 6))
+                         "switch agt" '("switch-to-buffer-agent") nil 10))
            (candidate (car completions)))
       (should candidate)
       (should-not (flex-x-tests--any-face-p candidate 'flex-x-highlight)))))
@@ -508,7 +552,7 @@
 (ert-deftest flex-x-sort-computes-match-once-per-candidate ()
   (let* ((flex-x-sort-by-history nil)
          (calls 0)
-         (match-context (flex-x--make-match-context '("fb") "")))
+         (match-context (flex-x--make-match-context '("fb") "" nil)))
     (cl-letf (((symbol-function 'flex-x--match-candidate)
                (lambda (candidate _match-context)
                  (cl-incf calls)
@@ -533,9 +577,9 @@
         (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (should (equal (flex-x-try-completion
-                    "ff pr"
+                    "find pro"
                     '("find-file" "project-find-file" "switch-to-buffer")
-                    nil 5)
+                    nil 8)
                    '("project-find-file" . 17)))))
 
 (ert-deftest flex-x-try-completion-extends-common-multi-term-prefix ()
@@ -543,7 +587,7 @@
         (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (should (equal (flex-x-try-completion
-                    "fb ba" '("foo-bar" "foo-baz" "far-qux") nil 5)
+                    "foo b" '("foo-bar" "foo-baz" "far-qux") nil 5)
                    '("foo-ba" . 6)))))
 
 (ert-deftest flex-x-emacs31-cost-matching-adds-cost-and-matches ()

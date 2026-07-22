@@ -9,7 +9,9 @@ requirements, and non-goals. Put implementation details in tests, code, or
 
 - Register `flex-x` as an Emacs completion style that extends the built-in
   `flex` style.
-- Match every space-separated input term while respecting completion boundaries
+- Match a single input term with built-in flex matching.  Once the configured
+  separator occurs in the input, match every non-empty term as an
+  order-independent literal substring while respecting completion boundaries
   and filename completion filtering.
 - Sort candidates by history first, then flex match quality, without discarding
   existing metadata sort functions.
@@ -24,7 +26,8 @@ requirements, and non-goals. Put implementation details in tests, code, or
 - Use Emacs flex cost information when available, including match positions for
   highlighting and lower-cost sorting.
 - Support optional extra matchers and regexp expanders such as migemo or pyim
-  without requiring third-party packages at load time.
+  without requiring third-party packages at load time.  Keep these matchers
+  available as alternatives to literal matching after a separator is entered.
 - Keep extra matching bounded by default by stopping predicate-driven candidate
   enumeration when the configured limit is exceeded, and cache generated
   patterns per completion request.
