@@ -533,6 +533,51 @@
       (should (equal (funcall sort-function '("ab" "ac"))
                      '("ac" "ab"))))))
 
+(ert-deftest flex-x-sort-respects-explicit-identity-sort-functions ()
+  (let ((flex-x-tests-history '("far-baz")))
+    (let* ((completion-styles '(flex-x))
+           (flex-x-extra-match-functions nil)
+           (flex-x-extra-pattern-function nil)
+           (minibuffer-history-variable 'flex-x-tests-history)
+           (metadata '(metadata
+                       (display-sort-function . identity)
+                       (cycle-sort-function . identity)))
+           (completions (completion-all-completions
+                         "fb" '("foo-bar" "far-baz") nil 2 metadata))
+           (candidates (flex-x-tests--items completions)))
+      (dolist (property '(display-sort-function cycle-sort-function))
+        (let ((sort-function (completion-metadata-get metadata property)))
+          (should (eq sort-function #'identity))
+          (should (equal (funcall sort-function candidates)
+                         '("foo-bar" "far-baz"))))))))
+
+(ert-deftest flex-x-identity-sort-uses-literal-single-term-matching ()
+  (let* ((completion-styles '(flex-x))
+         (completion-ignore-case t)
+         (flex-x-extra-match-functions nil)
+         (flex-x-extra-pattern-function nil)
+         (candidates '("Common-Docs" "c---o"))
+         (table
+          (lambda (string pred action)
+            (if (eq action 'metadata)
+                '(metadata
+                  (display-sort-function . identity)
+                  (cycle-sort-function . identity))
+              (complete-with-action action candidates string pred)))))
+    (should (equal (flex-x-tests--items
+                    (completion-all-completions "Co" table nil 2))
+                   '("Common-Docs")))))
+
+(ert-deftest flex-x-without-identity-sort-keeps-fuzzy-single-term-matching ()
+  (let ((completion-styles '(flex-x))
+        (completion-ignore-case t)
+        (flex-x-extra-match-functions nil)
+        (flex-x-extra-pattern-function nil))
+    (should (equal (flex-x-tests--items
+                    (completion-all-completions
+                     "Co" '("Common-Docs" "c---o") nil 2))
+                   '("Common-Docs" "c---o")))))
+
 (ert-deftest flex-x-sort-function-keeps-match-context ()
   (let* ((completion-styles '(flex-x))
          (flex-x-sort-by-history nil)

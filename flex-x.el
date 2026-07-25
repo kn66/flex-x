@@ -165,6 +165,16 @@ Set this to nil to allow scanning every prefix candidate."
   "Split STRING into non-empty flex-x search terms."
   (split-string string flex-x-split-regexp t))
 
+(defun flex-x--identity-sort-metadata-p (string table pred)
+  "Return non-nil when TABLE metadata preserves candidate order.
+
+STRING and PRED are passed to `completion-metadata'."
+  (let ((metadata (completion-metadata string table pred)))
+    (or (eq (completion-metadata-get metadata 'display-sort-function)
+            #'identity)
+        (eq (completion-metadata-get metadata 'cycle-sort-function)
+            #'identity))))
+
 (defun flex-x--context (string table pred point)
   "Return completion context for STRING, TABLE, PRED and POINT."
   (let* ((beforepoint (substring string 0 point))
@@ -181,7 +191,9 @@ Set this to nil to allow scanning every prefix candidate."
      :field field
      :field-point (length field-before)
      :terms (flex-x--split field)
-     :literal-terms-p (string-match-p flex-x-split-regexp field))))
+     :literal-terms-p
+     (or (string-match-p flex-x-split-regexp field)
+         (flex-x--identity-sort-metadata-p string table pred)))))
 
 (defun flex-x--context-completion-string (context candidate)
   "Return full completion string for CANDIDATE in CONTEXT."
@@ -648,9 +660,9 @@ accepted."
   (let* ((context (flex-x--context string table pred point))
          (terms (flex-x--context-terms context))
          (match-context (flex-x--make-match-context
-                          terms
-                          (flex-x--context-prefix context)
-                          (flex-x--context-literal-terms-p context)))
+                         terms
+                         (flex-x--context-prefix context)
+                         (flex-x--context-literal-terms-p context)))
          (extra-matchers (flex-x--extra-matchers-p)))
     (setq flex-x--last-match-context match-context)
     (if (null terms)
@@ -714,14 +726,14 @@ accepted."
   (let* ((context (flex-x--context string table pred point))
          (terms (flex-x--context-terms context))
          (match-context (flex-x--make-match-context
-                          terms
-                          (flex-x--context-prefix context)
-                          (flex-x--context-literal-terms-p context))))
+                         terms
+                         (flex-x--context-prefix context)
+                         (flex-x--context-literal-terms-p context))))
     (setq flex-x--last-match-context match-context)
     (if (or (null terms)
-             (and (not (flex-x--context-literal-terms-p context))
-                  (= (length terms) 1)
-                  (not (flex-x--extra-matchers-p))))
+            (and (not (flex-x--context-literal-terms-p context))
+                 (= (length terms) 1)
+                 (not (flex-x--extra-matchers-p))))
         (completion-flex-try-completion string table pred point)
       (pcase-let ((`(,candidates . ,_base-size)
                    (flex-x--matching-candidates string table pred point)))
@@ -870,11 +882,13 @@ accepted."
 
 (defun flex-x--compose-sort-function (existing-sort-function match-context-cell)
   "Return a sort function composed with EXISTING-SORT-FUNCTION."
-  (lambda (candidates)
-    (let ((sorted (if existing-sort-function
-                      (funcall existing-sort-function candidates)
-                    candidates)))
-      (flex-x--sort-candidates sorted (car match-context-cell)))))
+  (if (eq existing-sort-function #'identity)
+      #'identity
+    (lambda (candidates)
+      (let ((sorted (if existing-sort-function
+                        (funcall existing-sort-function candidates)
+                      candidates)))
+        (flex-x--sort-candidates sorted (car match-context-cell))))))
 
 (defun flex-x--adjust-metadata (metadata)
   "Adjust completion METADATA for flex-x sorting."

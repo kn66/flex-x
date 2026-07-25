@@ -13,8 +13,14 @@ requirements, and non-goals. Put implementation details in tests, code, or
   separator occurs in the input, match every non-empty term as an
   order-independent literal substring while respecting completion boundaries
   and filename completion filtering.
+- When completion metadata explicitly preserves candidate order with an
+  `identity` sort function, match a single input term literally instead of
+  returning unsorted fuzzy matches.
 - Sort candidates by history first, then flex match quality, without discarding
   existing metadata sort functions.
+- Preserve an explicit `identity` metadata sort function, which marks
+  candidates as already sorted and disables additional display or cycle
+  sorting.
 - Annotate and highlight matches with standard completion properties and faces,
   including lazy highlighting when available.
 - Highlight a candidate as a whole with the package face `flex-x-highlight`
