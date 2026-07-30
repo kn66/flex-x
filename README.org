@@ -15,8 +15,7 @@ completion style.
 - Respect completion metadata which explicitly disables additional sorting.
 - Highlight matches with standard completion faces, and highlight strong
   literal or word-prefix-sequence matches as a whole with ~flex-x-highlight~.
-- Add extra matchers or regexp expanders for non-ASCII candidates, for example
-  migemo or pyim.
+- Add regexp expanders for non-ASCII candidates, for example migemo or pyim.
 
 * Screenshots
 :PROPERTIES:
@@ -24,7 +23,7 @@ completion style.
 :END:
 
 ~flex-x~ keeps the standard completion UI while adding literal AND-style
-filtering after a space, match highlighting, and optional extra matching for
+filtering after a space, match highlighting, and optional regexp expansion for
 non-ASCII candidates.
 
 #+caption: Space-separated terms filter candidates with AND, while strong matches are emphasized above looser flex matches.
@@ -78,25 +77,28 @@ For pyim-style matching:
     (setq flex-x-extra-pattern-function #'pyim-cregexp-build))
 #+end_src
 
-By default, extra matching is called only for candidates containing
+By default, expanded regexp matching is used only for candidates containing
 non-ASCII characters. Customize ~flex-x-extra-match-nonascii-only~ if
 you want it to run for every candidate.
 
-Before a space is entered, the input uses built-in flex matching.  After a
-space is entered, every non-empty term must match as a literal substring or by
-one of the configured extra matchers.  Terms may occur in any order.
+Before whitespace is entered, the input uses built-in flex matching.  After
+whitespace is entered, every non-empty term must match as a literal substring
+or by a configured regexp expander.  Terms may occur in any order.  Input
+containing only whitespace does not filter candidates.
 
 If completion metadata sets either the display or cycle sort function to
 ~identity~, flex-x preserves that order and uses literal matching even before a
 space is entered.  This keeps completion commands such as ~consult-dir~, which
 disable sorting intentionally, from returning large unsorted fuzzy match sets.
+In this case flex-x does not add score or history sorting to either sort
+channel, while preserving another explicitly configured sort function.
 
-Extra matching scans up to ~flex-x-extra-match-candidate-limit~
+Expanded regexp matching scans up to ~flex-x-extra-match-candidate-limit~
 raw candidates for the current completion prefix. The default limit is
 ~5000~; when it is exceeded, flex-x stops predicate-driven enumeration
-and skips the extra matching pass. Set it to nil if you want migemo or
+and skips regexp expansion. Set it to nil if you want migemo or
 pyim expansion to scan every candidate even in very large completion
-tables. Ignored filename extensions are filtered after extra matching,
+tables. Ignored filename extensions are filtered after regexp expansion,
 so an ignored file remains available when it is the only match.
 
 With Corfu, enable ~corfu-history-mode~ to sort flex-x candidates by the
@@ -129,24 +131,6 @@ Examples:
   (setq flex-x-extra-pattern-function
         '(migemo-get-pattern pyim-cregexp-build))
 #+end_src
-
-* Custom Matcher Protocol
-
-For lower-level control, use ~flex-x-extra-match-functions~.
-
-Each function in ~flex-x-extra-match-functions~ receives ~(TERM
-CANDIDATE)~.
-
-It can return:
-
-- ~nil~: no match.
-- ~t~: match with ~flex-x-extra-match-score~.
-- a number: match with that score.
-- a plist: ~(:score SCORE :ranges ((BEG . END) ...))~.
-
-~ranges~ are optional candidate character ranges highlighted with
-~completions-common-part~. Matchers that signal an error are ignored so
-that one broken matcher does not abort completion.
 
 * Development
 

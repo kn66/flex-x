@@ -64,10 +64,8 @@
 This face intentionally does not set foreground or background colors."
   :group 'flex-x)
 
-(defcustom flex-x-split-regexp "[[:space:]]+"
-  "Regexp used to split input into flex-x search terms."
-  :type 'regexp
-  :group 'flex-x)
+(defconst flex-x--whitespace-regexp "[[:space:]]+"
+  "Regexp separating flex-x search terms.")
 
 (defcustom flex-x-sort-by-history t
   "Non-nil means prefer candidates found in completion history.
@@ -76,19 +74,6 @@ In minibuffer completion, this uses `minibuffer-history-variable' and
 `minibuffer-completion-base'.  Outside the minibuffer, this uses
 `corfu-history' when `corfu-history-mode' is enabled."
   :type 'boolean
-  :group 'flex-x)
-
-(defcustom flex-x-extra-match-functions nil
-  "Extra functions used when built-in flex does not match.
-
-Each function is called with two arguments: the search term and the
-candidate string.  It should return nil for no match, t for a match
-with `flex-x-extra-match-score', a number to use as the score, or a
-plist with `:score' and optional `:ranges'.
-
-`:ranges' should be a list of (BEG . END) ranges in the candidate.
-These ranges are highlighted with `completions-common-part'."
-  :type '(repeat function)
   :group 'flex-x)
 
 (defcustom flex-x-extra-pattern-function nil
@@ -111,22 +96,17 @@ this extra regexp matching is limited to non-ASCII candidates; see
   :group 'flex-x)
 
 (defcustom flex-x-extra-match-nonascii-only t
-  "Non-nil means use extra matching only for non-ASCII candidates."
+  "Non-nil means use expanded regexp matching only for non-ASCII candidates."
   :type 'boolean
   :group 'flex-x)
 
-(defcustom flex-x-extra-match-score 0.1
-  "Default score used when an extra matcher returns t."
-  :type 'number
-  :group 'flex-x)
-
 (defcustom flex-x-extra-match-candidate-limit 5000
-  "Maximum number of prefix candidates scanned by extra matchers.
+  "Maximum number of prefix candidates scanned for regexp expansion.
 
-When extra matchers are configured, flex-x may need to inspect
+When a regexp expander is configured, flex-x may need to inspect
 candidates that did not match built-in flex.  If the number of
 candidates returned for the current completion prefix is greater than
-this value, flex-x skips that extra matching pass and keeps only
+this value, flex-x skips expanded regexp matching and keeps only
 built-in flex matches.
 
 Set this to nil to allow scanning every prefix candidate."
@@ -163,7 +143,7 @@ Set this to nil to allow scanning every prefix candidate."
 
 (defun flex-x--split (string)
   "Split STRING into non-empty flex-x search terms."
-  (split-string string flex-x-split-regexp t))
+  (split-string string flex-x--whitespace-regexp t))
 
 (defun flex-x--identity-sort-metadata-p (string table pred)
   "Return non-nil when TABLE metadata preserves candidate order.
@@ -192,7 +172,7 @@ STRING and PRED are passed to `completion-metadata'."
      :field-point (length field-before)
      :terms (flex-x--split field)
      :literal-terms-p
-     (or (string-match-p flex-x-split-regexp field)
+     (or (string-match-p flex-x--whitespace-regexp field)
          (flex-x--identity-sort-metadata-p string table pred)))))
 
 (defun flex-x--context-completion-string (context candidate)
@@ -205,6 +185,20 @@ STRING and PRED are passed to `completion-metadata'."
   "Return point position after completing CANDIDATE in CONTEXT."
   (+ (length (flex-x--context-prefix context))
      (length candidate)))
+
+(defun flex-x--whitespace-only-p (context)
+  "Return non-nil when CONTEXT's field contains only whitespace."
+  (let ((field (flex-x--context-field context)))
+    (and (null (flex-x--context-terms context))
+         (not (string-empty-p field))
+         (string-match-p flex-x--whitespace-regexp field))))
+
+(defun flex-x--empty-field-completions (context table pred)
+  "Return flex completions for CONTEXT with an empty completion field."
+  (let ((prefix (flex-x--context-prefix context))
+        (suffix (flex-x--context-suffix context)))
+    (completion-flex-all-completions
+     (concat prefix suffix) table pred (length prefix))))
 
 (defun flex-x--candidate-target (candidate)
   "Return the unquoted string to match for CANDIDATE."
@@ -346,10 +340,9 @@ STRING and PRED are passed to `completion-metadata'."
    ((listp flex-x-extra-pattern-function)
     flex-x-extra-pattern-function)))
 
-(defun flex-x--extra-matchers-p ()
-  "Return non-nil if any extra matcher is configured."
-  (or flex-x-extra-match-functions
-      (flex-x--extra-pattern-functions)))
+(defun flex-x--extra-patterns-p ()
+  "Return non-nil if an extra regexp expander is configured."
+  (flex-x--extra-pattern-functions))
 
 (defun flex-x--make-match-context (terms prefix literal-terms-p)
   "Return a match context for TERMS, PREFIX and LITERAL-TERMS-P."
@@ -365,26 +358,11 @@ STRING and PRED are passed to `completion-metadata'."
                    (flex-x--prefix-sequence-regexp term)))
            terms)))
 
-(defun flex-x--normalize-extra-match (value)
-  "Normalize an extra matcher return VALUE to a plist."
-  (cond
-   ((null value) nil)
-   ((numberp value) (list :score value))
-   ((and (listp value) (plist-member value :score)) value)
-   (t (list :score flex-x-extra-match-score))))
-
-(defun flex-x--extra-match-allowed-p (candidate)
-  "Return non-nil when extra matchers may run for CANDIDATE."
-  (and (flex-x--extra-matchers-p)
+(defun flex-x--extra-pattern-match-allowed-p (candidate)
+  "Return non-nil when extra regexp matching may run for CANDIDATE."
+  (and (flex-x--extra-patterns-p)
        (or (not flex-x-extra-match-nonascii-only)
            (flex-x--string-nonascii-p candidate))))
-
-(defun flex-x--extra-function-match (term candidate)
-  "Return custom function match information for TERM and CANDIDATE."
-  (cl-loop for fn in flex-x-extra-match-functions
-           for value = (ignore-errors (funcall fn term candidate))
-           for match = (flex-x--normalize-extra-match value)
-           when match return match))
 
 (defun flex-x--valid-regexp (regexp)
   "Return REGEXP when it is a valid non-empty regexp string."
@@ -420,15 +398,9 @@ STRING and PRED are passed to `completion-metadata'."
   (let ((case-fold-search completion-ignore-case))
     (cl-loop for regexp in (flex-x--cached-extra-patterns term match-context)
              when (string-match regexp candidate)
-             return (list :score flex-x-extra-match-score
+             return (list :score 0.1
                           :ranges (list (cons (match-beginning 0)
                                               (match-end 0)))))))
-
-(defun flex-x--extra-match (term candidate match-context)
-  "Return extra match information for TERM and CANDIDATE."
-  (when (flex-x--extra-match-allowed-p candidate)
-    (or (flex-x--extra-function-match term candidate)
-        (flex-x--extra-pattern-match term candidate match-context))))
 
 (defun flex-x--builtin-flex-match (term candidate target match-context)
   "Return built-in flex match information for TERM and CANDIDATE's TARGET."
@@ -464,7 +436,8 @@ STRING and PRED are passed to `completion-metadata'."
     (or (if (flex-x--match-context-literal-terms-p match-context)
             (flex-x--literal-match term candidate target match-context)
           (flex-x--builtin-flex-match term candidate target match-context))
-        (flex-x--extra-match term target match-context))))
+        (and (flex-x--extra-pattern-match-allowed-p target)
+             (flex-x--extra-pattern-match term target match-context)))))
 
 (defun flex-x--match-candidate (candidate match-context)
   "Return aggregate match information for CANDIDATE and MATCH-CONTEXT."
@@ -586,7 +559,7 @@ STRING and PRED are passed to `completion-metadata'."
       (puthash key t seen))))
 
 (defun flex-x--within-candidate-limit-p (candidates)
-  "Return non-nil if CANDIDATES may be scanned by extra matchers."
+  "Return non-nil if CANDIDATES may be scanned for regexp expansion."
   (let ((limit flex-x-extra-match-candidate-limit))
     (or (null limit)
         (and
@@ -618,7 +591,7 @@ accepted."
              t)))))
 
 (defun flex-x--extra-table-candidates (context table pred)
-  "Return candidates for extra matching when the scan is bounded."
+  "Return candidates for expanded regexp matching when the scan is bounded."
   (let ((limit flex-x-extra-match-candidate-limit))
     (cond
      ((null limit)
@@ -663,22 +636,24 @@ accepted."
                          terms
                          (flex-x--context-prefix context)
                          (flex-x--context-literal-terms-p context)))
-         (extra-matchers (flex-x--extra-matchers-p)))
+         (extra-patterns (flex-x--extra-patterns-p)))
     (setq flex-x--last-match-context match-context)
     (if (null terms)
         (flex-x--completion-list-parts
-         (completion-flex-all-completions string table pred point))
+         (if (flex-x--whitespace-only-p context)
+             (flex-x--empty-field-completions context table pred)
+           (completion-flex-all-completions string table pred point)))
       (let* ((seed (flex-x--builtin-flex-candidates
                     context table pred (car terms)))
              (base-size (cdr seed))
              (candidates (car seed)))
-        (when extra-matchers
+        (when extra-patterns
           (when-let* ((extra-candidates (flex-x--extra-table-candidates
                                          context table pred)))
             (setq candidates (append candidates extra-candidates))))
         (setq candidates
               (flex-x--matched-candidates candidates match-context))
-        (when (and extra-matchers minibuffer-completing-file-name)
+        (when (and extra-patterns minibuffer-completing-file-name)
           (setq candidates
                 (completion-pcm--filename-try-filter candidates)))
         (when (boundp 'completion-lazy-hilit-fn)
@@ -714,7 +689,9 @@ accepted."
     (let ((common (flex-x--common-candidate-prefix candidates)))
       (if (and (stringp common)
                (> (length common)
-                  (length (flex-x--context-field context))))
+                  (if (flex-x--whitespace-only-p context)
+                      0
+                    (length (flex-x--context-field context)))))
           (cons (flex-x--context-completion-string context common)
                 (flex-x--context-completion-point context common))
         (cons string point))))))
@@ -729,13 +706,17 @@ accepted."
                          (flex-x--context-prefix context)
                          (flex-x--context-literal-terms-p context))))
     (setq flex-x--last-match-context match-context)
-    (if (or (null terms)
+    (if (or (and (null terms)
+                 (not (flex-x--whitespace-only-p context)))
             (and (not (flex-x--context-literal-terms-p context))
                  (= (length terms) 1)
-                 (not (flex-x--extra-matchers-p))))
+                 (not (flex-x--extra-patterns-p))))
         (completion-flex-try-completion string table pred point)
       (pcase-let ((`(,candidates . ,_base-size)
                    (flex-x--matching-candidates string table pred point)))
+        (when minibuffer-completing-file-name
+          (setq candidates
+                (completion-pcm--filename-try-filter candidates)))
         (flex-x--try-completion-from-candidates
          string point context candidates)))))
 
@@ -905,47 +886,40 @@ accepted."
            'flex-x--original-cycle-sort-function
            (cdr metadata)
            (completion-metadata-get metadata 'cycle-sort-function)))
+         (preserve-order-p
+          (or (eq original-display-sort-function #'identity)
+              (eq original-cycle-sort-function #'identity)))
          (rest (flex-x--metadata-without-flex-x metadata)))
     (setcar match-context-cell match-context)
     (if (not (and match-context
                   (flex-x--match-context-terms match-context)))
         `(metadata
-          ,@(and original-display-sort-function
+          ,@(and (or preserve-order-p original-display-sort-function)
                  `((display-sort-function
-                    . ,original-display-sort-function)))
-          ,@(and original-cycle-sort-function
-                 `((cycle-sort-function . ,original-cycle-sort-function)))
+                    . ,(or original-display-sort-function #'identity))))
+          ,@(and (or preserve-order-p original-cycle-sort-function)
+                 `((cycle-sort-function
+                    . ,(or original-cycle-sort-function #'identity))))
           ,@rest)
       `(metadata
         (display-sort-function
-         . ,(flex-x--compose-sort-function
-             original-display-sort-function
-             match-context-cell))
+         . ,(if preserve-order-p
+                (or original-display-sort-function #'identity)
+              (flex-x--compose-sort-function
+               original-display-sort-function
+               match-context-cell)))
         (cycle-sort-function
-         . ,(flex-x--compose-sort-function
-             original-cycle-sort-function
-             match-context-cell))
+         . ,(if preserve-order-p
+                (or original-cycle-sort-function #'identity)
+              (flex-x--compose-sort-function
+               original-cycle-sort-function
+               match-context-cell)))
         (flex-x--match-context-cell . ,match-context-cell)
         (flex-x--original-display-sort-function
          . ,original-display-sort-function)
         (flex-x--original-cycle-sort-function
          . ,original-cycle-sort-function)
         ,@rest))))
-
-;;;###autoload
-(defun flex-x-migemo-match (term candidate)
-  "Return non-nil when TERM matches CANDIDATE using migemo.
-
-This function does not require migemo at load time.  Add it to
-`flex-x-extra-match-functions' after loading migemo.
-
-For simple migemo integration, prefer setting
-`flex-x-extra-pattern-function' to `migemo-get-pattern'."
-  (when (fboundp 'migemo-get-pattern)
-    (let ((regexp (ignore-errors (migemo-get-pattern term))))
-      (and (flex-x--valid-regexp regexp)
-           (string-match-p regexp candidate)
-           t))))
 
 ;;;###autoload
 (defun flex-x-register-style ()

@@ -83,7 +83,6 @@
 
 (ert-deftest flex-x-space-separated-terms-use-order-independent-literals ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (should (equal (flex-x-tests--items
                     (completion-all-completions
@@ -95,34 +94,33 @@
 
 (ert-deftest flex-x-space-separated-terms-reject-fuzzy-only-matches ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (should-not (completion-all-completions
                  "ff pro" '("project-find-file") nil 6))))
 
 (ert-deftest flex-x-trailing-space-switches-to-literal-matching ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (should-not (completion-all-completions
                  "ff " '("find-file") nil 3))))
 
-(ert-deftest flex-x-literal-terms-keep-extra-matcher-alternatives ()
+(ert-deftest flex-x-whitespace-only-input-does-not-filter-candidates ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions
-         (list (lambda (term candidate)
-                 (and (string= term "tokyo")
-                      (string-match-p "東京" candidate)))))
-        (flex-x-extra-pattern-function nil)
-        (flex-x-extra-match-nonascii-only t))
+        (flex-x-extra-pattern-function nil))
     (should (equal (flex-x-tests--items
                     (completion-all-completions
-                     "tokyo file" '("東京-file" "東京-buffer") nil 10))
-                   '("東京-file")))))
+                     " " '("foo" "bar") nil 1))
+                   '("foo" "bar")))))
+
+(ert-deftest flex-x-whitespace-only-input-completes-common-prefix ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-pattern-function nil))
+    (should (equal (flex-x-try-completion
+                    " " '("foo" "far") nil 1)
+                   '("f" . 1)))))
 
 (ert-deftest flex-x-literal-terms-keep-extra-pattern-alternatives ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function
          (lambda (term)
            (and (string= term "tokyo") "東京")))
@@ -132,9 +130,8 @@
                      "tokyo file" '("東京-file" "東京-buffer") nil 10))
                    '("東京-file")))))
 
-(ert-deftest flex-x-skips-extra-candidate-scan-without-extra-matchers ()
+(ert-deftest flex-x-skips-extra-candidate-scan-without-regexp-expander ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil)
         (calls 0))
     (cl-letf (((symbol-function 'flex-x--extra-table-candidates)
@@ -149,7 +146,6 @@
 
 (ert-deftest flex-x-respects-completion-boundaries ()
   (let* ((completion-styles '(flex-x))
-         (flex-x-extra-match-functions nil)
          (flex-x-extra-pattern-function nil)
          (table (flex-x-tests--slash-boundary-table
                  '("foo-bar" "foo-baz")))
@@ -158,9 +154,17 @@
     (should (equal (flex-x-try-completion input table nil point)
                    '("dir/foo-ba/qux" . 10)))))
 
+(ert-deftest flex-x-whitespace-only-input-respects-completion-boundaries ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-pattern-function nil)
+         (table (flex-x-tests--slash-boundary-table '("foo" "far")))
+         (input "dir/ /qux")
+         (point (length "dir/ ")))
+    (should (equal (flex-x-try-completion input table nil point)
+                   '("dir/f/qux" . 5)))))
+
 (ert-deftest flex-x-score-property-and-standard-face-are-added ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "foo"
@@ -175,7 +179,6 @@
 
 (ert-deftest flex-x-long-candidate-starting-with-term-is-highlighted ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "agent"
@@ -186,7 +189,6 @@
 
 (ert-deftest flex-x-term-after-separator-highlights-whole-candidate ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "agent" '("gnus-agentize") nil 5))
@@ -195,7 +197,6 @@
 
 (ert-deftest flex-x-contiguous-term-inside-word-highlights-whole-candidate ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "load" '("org-reload") nil 4))
@@ -206,7 +207,6 @@
 (ert-deftest flex-x-word-prefix-highlight-obeys-completion-ignore-case ()
   (let ((completion-styles '(flex-x))
         (completion-ignore-case t)
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "agent" '("Gnus-Agentize") nil 5))
@@ -215,7 +215,6 @@
 
 (ert-deftest flex-x-all-terms-at-word-prefixes-highlight-whole-candidate ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "sw bu" '("switch-to-buffer") nil 5))
@@ -224,7 +223,6 @@
 
 (ert-deftest flex-x-concatenated-word-prefixes-highlight-whole-candidate ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (dolist (input '("loadfile" "lofile"))
       (let* ((completions (completion-all-completions
@@ -236,7 +234,6 @@
 (ert-deftest flex-x-camel-case-prefixes-highlight-whole-candidate ()
   (let ((completion-styles '(flex-x))
         (completion-ignore-case t)
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (dolist (case '(("lofi" "loadFile")
                     ("hpr" "HTTPParserResult")))
@@ -250,7 +247,6 @@
 
 (ert-deftest flex-x-word-prefix-sequence-may-start-after-earlier-words ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "lofile" '("org-babel-load-file") nil 6))
@@ -260,7 +256,6 @@
 
 (ert-deftest flex-x-word-prefix-sequence-does-not-skip-words ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "lofile" '("htmlfontify-load-rgb-file") nil 6))
@@ -271,7 +266,6 @@
 (ert-deftest flex-x-camel-case-prefix-sequence-does-not-skip-words ()
   (let ((completion-styles '(flex-x))
         (completion-ignore-case t)
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "lofi" '("loadRgbFile") nil 4))
@@ -281,7 +275,6 @@
 
 (ert-deftest flex-x-word-prefix-sequence-requires-word-prefixes ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "loadfile" '("package-upload-file") nil 8))
@@ -291,7 +284,6 @@
 
 (ert-deftest flex-x-noncontiguous-flex-match-is-not-highlighted-as-a-whole ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "agt"
@@ -306,11 +298,9 @@
 
 (ert-deftest flex-x-all-terms-must-strongly-match-for-whole-highlight ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions
-         (list (lambda (term candidate)
-                 (and (string= term "agt")
-                      (string= candidate "switch-to-buffer-agent")))))
-        (flex-x-extra-pattern-function nil)
+        (flex-x-extra-pattern-function
+         (lambda (term)
+           (and (string= term "agt") "a.*g.*t")))
         (flex-x-extra-match-nonascii-only nil))
     (let* ((completions (completion-all-completions
                          "switch agt" '("switch-to-buffer-agent") nil 10))
@@ -322,7 +312,6 @@
   (let ((completion-styles '(flex-x))
         (completion-lazy-hilit t)
         completion-lazy-hilit-fn
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (let* ((completions (completion-all-completions
                          "foo" '("foo") nil 3))
@@ -357,48 +346,8 @@
         (should (flex-x-tests--all-face-p
                  highlighted 'flex-x-highlight))))))
 
-(ert-deftest flex-x-extra-matcher-adds-nonascii-candidate ()
-  (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions
-         (list (lambda (term candidate)
-                 (and (string= term "tokyo")
-                      (string= candidate "東京")))))
-        (flex-x-extra-pattern-function nil)
-        (flex-x-extra-match-nonascii-only t))
-    (should (member "東京"
-                    (flex-x-tests--items
-                     (completion-all-completions
-                      "tokyo" '("東京" "touch") nil 5))))))
-
-(ert-deftest flex-x-extra-matcher-skips-ascii-candidates-by-default ()
-  (let* ((completion-styles '(flex-x))
-         (calls 0)
-         (flex-x-extra-match-functions
-          (list (lambda (_term _candidate)
-                  (cl-incf calls)
-                  t)))
-         (flex-x-extra-pattern-function nil)
-         (flex-x-extra-match-nonascii-only t))
-    (completion-all-completions "zzz" '("ascii") nil 3)
-    (should (= calls 0))))
-
-(ert-deftest flex-x-extra-matcher-ranges-are-highlighted ()
-  (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions
-         (list (lambda (term candidate)
-                 (and (string= term "tokyo")
-                      (string= candidate "東京")
-                      '(:score 0.2 :ranges ((0 . 2)))))))
-        (flex-x-extra-pattern-function nil)
-        (flex-x-extra-match-nonascii-only t))
-    (let ((candidate (car (completion-all-completions
-                           "tokyo" '("東京") nil 5))))
-      (should (flex-x-tests--face-at-p candidate 0
-                                       'completions-common-part)))))
-
 (ert-deftest flex-x-extra-pattern-function-adds-nonascii-candidate ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function
          (lambda (term)
            (and (string= term "tokyo")
@@ -412,7 +361,6 @@
 (ert-deftest flex-x-extra-pattern-function-is-cached-per-term ()
   (let* ((completion-styles '(flex-x))
          (calls 0)
-         (flex-x-extra-match-functions nil)
          (flex-x-extra-pattern-function
           (lambda (term)
             (cl-incf calls)
@@ -434,15 +382,13 @@
     (should (widget-apply widget :match
                           '(migemo-get-pattern pyim-cregexp-build)))))
 
-(ert-deftest flex-x-extra-matcher-respects-candidate-limit ()
+(ert-deftest flex-x-extra-pattern-respects-candidate-limit ()
   (let* ((completion-styles '(flex-x))
          (calls 0)
-         (flex-x-extra-match-functions
-          (list (lambda (term candidate)
-                  (cl-incf calls)
-                  (and (string= term "tokyo")
-                       (string= candidate "東京")))))
-         (flex-x-extra-pattern-function nil)
+         (flex-x-extra-pattern-function
+          (lambda (_term)
+            (cl-incf calls)
+            "東京"))
          (flex-x-extra-match-nonascii-only t)
          (flex-x-extra-match-candidate-limit 1))
     (should-not (member "東京"
@@ -451,10 +397,9 @@
                           "tokyo" '("東京" "東京都") nil 5))))
     (should (= calls 0))))
 
-(ert-deftest flex-x-extra-matcher-stops-enumerating-at-candidate-limit ()
+(ert-deftest flex-x-extra-pattern-stops-enumerating-at-candidate-limit ()
   (let* ((completion-styles '(flex-x))
-         (flex-x-extra-match-functions (list (lambda (&rest _) t)))
-         (flex-x-extra-pattern-function nil)
+         (flex-x-extra-pattern-function (lambda (_term) "never"))
          (flex-x-extra-match-nonascii-only nil)
          (flex-x-extra-match-candidate-limit 5)
          (candidates (mapcar #'number-to-string (number-sequence 1 100)))
@@ -467,13 +412,11 @@
       (completion-all-completions "zzz" candidates nil 3)
       (should (= calls 6)))))
 
-(ert-deftest flex-x-extra-matcher-obeys-file-name-ignored-extensions ()
+(ert-deftest flex-x-extra-pattern-obeys-file-name-ignored-extensions ()
   (let* ((completion-styles '(flex-x))
-         (flex-x-extra-match-functions
-          (list (lambda (term candidate)
-                  (and (string= term "tokyo")
-                       (string-match-p "東京" candidate)))))
-         (flex-x-extra-pattern-function nil)
+         (flex-x-extra-pattern-function
+          (lambda (term)
+            (and (string= term "tokyo") "東京")))
          (flex-x-extra-match-nonascii-only t)
          (flex-x-extra-match-candidate-limit nil)
          (minibuffer-completing-file-name t)
@@ -483,13 +426,11 @@
                      "tokyo" '("東京.el" "東京.o") nil 5))
                    '("東京.el")))))
 
-(ert-deftest flex-x-extra-matcher-keeps-sole-matching-ignored-file ()
+(ert-deftest flex-x-extra-pattern-keeps-sole-matching-ignored-file ()
   (let* ((completion-styles '(flex-x))
-         (flex-x-extra-match-functions
-          (list (lambda (term candidate)
-                  (and (string= term "zzz")
-                       (string= candidate "special.o")))))
-         (flex-x-extra-pattern-function nil)
+         (flex-x-extra-pattern-function
+          (lambda (term)
+            (and (string= term "zzz") "special\\.o")))
          (flex-x-extra-match-nonascii-only nil)
          (flex-x-extra-match-candidate-limit nil)
          (minibuffer-completing-file-name t)
@@ -499,16 +440,29 @@
                      "zzz" '("special.o" "unrelated.el") nil 3))
                    '("special.o")))))
 
-(ert-deftest flex-x-migemo-match-does-not-require-migemo ()
-  (should-not (flex-x-migemo-match "tokyo" "東京"))
-  (cl-letf (((symbol-function 'migemo-get-pattern)
-             (lambda (_term) (regexp-quote "東京"))))
-    (should (flex-x-migemo-match "tokyo" "東京"))))
+(ert-deftest flex-x-multi-term-file-try-filters-ignored-extension ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-pattern-function nil)
+        (minibuffer-completing-file-name t)
+        (completion-ignored-extensions '(".o")))
+    (should (equal (flex-x-try-completion
+                    "foo bar" '("foo-bar.el" "foo-bar.o") nil 7)
+                   '("foo-bar.el" . 10)))))
+
+(ert-deftest flex-x-multi-term-file-try-keeps-sole-ignored-match ()
+  (let ((completion-styles '(flex-x))
+        (flex-x-extra-pattern-function nil)
+        (minibuffer-completing-file-name t)
+        (completion-ignored-extensions '(".o")))
+    (should (equal (flex-x-try-completion
+                    "special file"
+                    '("special-file.o" "special-other.el")
+                    nil 12)
+                   '("special-file.o" . 14)))))
 
 (ert-deftest flex-x-sort-prefers-history-then-score ()
   (let ((flex-x-tests-history '("far-baz")))
     (let* ((completion-styles '(flex-x))
-           (flex-x-extra-match-functions nil)
            (flex-x-extra-pattern-function nil)
            (minibuffer-history-variable 'flex-x-tests-history)
            (metadata (completion-metadata "" '("foo-bar" "far-baz") nil))
@@ -525,7 +479,6 @@
 (ert-deftest flex-x-sort-prefers-corfu-history-then-score ()
   (let ((flex-x-tests-history '("foo-bar")))
     (let* ((completion-styles '(flex-x))
-           (flex-x-extra-match-functions nil)
            (flex-x-extra-pattern-function nil)
            (corfu-history-mode t)
            (corfu-history '("far-baz"))
@@ -544,7 +497,6 @@
 (ert-deftest flex-x-sort-keeps-existing-metadata-sort-function ()
   (let* ((completion-styles '(flex-x))
          (flex-x-sort-by-history nil)
-         (flex-x-extra-match-functions nil)
          (flex-x-extra-pattern-function nil)
          (metadata '(metadata (display-sort-function . reverse))))
     (completion-all-completions "a" '("ab" "ac") nil 1 metadata)
@@ -557,7 +509,6 @@
 (ert-deftest flex-x-sort-respects-explicit-identity-sort-functions ()
   (let ((flex-x-tests-history '("far-baz")))
     (let* ((completion-styles '(flex-x))
-           (flex-x-extra-match-functions nil)
            (flex-x-extra-pattern-function nil)
            (minibuffer-history-variable 'flex-x-tests-history)
            (metadata '(metadata
@@ -572,10 +523,59 @@
           (should (equal (funcall sort-function candidates)
                          '("foo-bar" "far-baz"))))))))
 
+(ert-deftest flex-x-display-identity-disables-additional-cycle-sorting ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-sort-by-history nil)
+         (flex-x-extra-pattern-function nil)
+         (metadata '(metadata (display-sort-function . identity)))
+         (completions (completion-all-completions
+                       "a" '("x---a" "ab") nil 1 metadata))
+         (candidates (flex-x-tests--items completions)))
+    (dolist (property '(display-sort-function cycle-sort-function))
+      (let ((sort-function (completion-metadata-get metadata property)))
+        (should (eq sort-function #'identity))
+        (should (equal (funcall sort-function candidates)
+                       '("x---a" "ab")))))))
+
+(ert-deftest flex-x-cycle-identity-disables-additional-display-sorting ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-sort-by-history nil)
+         (flex-x-extra-pattern-function nil)
+         (metadata '(metadata (cycle-sort-function . identity)))
+         (completions (completion-all-completions
+                       "a" '("x---a" "ab") nil 1 metadata))
+         (candidates (flex-x-tests--items completions)))
+    (dolist (property '(display-sort-function cycle-sort-function))
+      (let ((sort-function (completion-metadata-get metadata property)))
+        (should (eq sort-function #'identity))
+        (should (equal (funcall sort-function candidates)
+                       '("x---a" "ab")))))))
+
+(ert-deftest flex-x-identity-preserves-order-for-empty-input ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-pattern-function nil)
+         (metadata '(metadata (display-sort-function . identity))))
+    (completion-all-completions "" '("b" "a") nil 0 metadata)
+    (dolist (property '(display-sort-function cycle-sort-function))
+      (should (eq (completion-metadata-get metadata property)
+                  #'identity)))))
+
+(ert-deftest flex-x-identity-keeps-other-explicit-sort-function ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-sort-by-history nil)
+         (flex-x-extra-pattern-function nil)
+         (metadata '(metadata
+                     (display-sort-function . identity)
+                     (cycle-sort-function . reverse))))
+    (completion-all-completions "a" '("x---a" "ab") nil 1 metadata)
+    (should (eq (completion-metadata-get metadata 'display-sort-function)
+                #'identity))
+    (should (eq (completion-metadata-get metadata 'cycle-sort-function)
+                #'reverse))))
+
 (ert-deftest flex-x-identity-sort-uses-literal-single-term-matching ()
   (let* ((completion-styles '(flex-x))
          (completion-ignore-case t)
-         (flex-x-extra-match-functions nil)
          (flex-x-extra-pattern-function nil)
          (candidates '("Common-Docs" "c---o"))
          (table
@@ -592,7 +592,6 @@
 (ert-deftest flex-x-without-identity-sort-keeps-fuzzy-single-term-matching ()
   (let ((completion-styles '(flex-x))
         (completion-ignore-case t)
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (should (equal (flex-x-tests--items
                     (completion-all-completions
@@ -602,7 +601,6 @@
 (ert-deftest flex-x-sort-function-keeps-match-context ()
   (let* ((completion-styles '(flex-x))
          (flex-x-sort-by-history nil)
-         (flex-x-extra-match-functions nil)
          (flex-x-extra-pattern-function nil)
          (table '("foo-bar" "fbar" "far-baz"))
          (metadata (completion-metadata "" table nil)))
@@ -633,14 +631,12 @@
 
 (ert-deftest flex-x-try-completion-returns-nil-for-no-multi-term-match ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (should-not (flex-x-try-completion
                  "zz aa" '("foo" "bar") nil 5))))
 
 (ert-deftest flex-x-try-completion-completes-single-multi-term-match ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (should (equal (flex-x-try-completion
                     "find pro"
@@ -650,7 +646,6 @@
 
 (ert-deftest flex-x-try-completion-extends-common-multi-term-prefix ()
   (let ((completion-styles '(flex-x))
-        (flex-x-extra-match-functions nil)
         (flex-x-extra-pattern-function nil))
     (should (equal (flex-x-try-completion
                     "foo b" '("foo-bar" "foo-baz" "far-qux") nil 5)
@@ -663,7 +658,6 @@
                     (string= candidate "foo")
                     (cons 0 '(0 1 2))))))
     (let ((completion-styles '(flex-x))
-          (flex-x-extra-match-functions nil)
           (flex-x-extra-pattern-function nil))
       (let* ((completions (completion-all-completions
                            "foo" '("foo") nil 3))
@@ -684,7 +678,6 @@
                     (string= candidate "foo-bar")
                     (cons 1 '(0 4))))))
     (let ((completion-styles '(flex-x))
-          (flex-x-extra-match-functions nil)
           (flex-x-extra-pattern-function nil))
       (let* ((completions (completion-all-completions
                            "fb" '("foo-bar") nil 2))
@@ -728,7 +721,6 @@
                  (cl-incf cost-calls)
                  (error "seed flex cost should be reused"))))
       (let ((completion-styles '(flex-x))
-            (flex-x-extra-match-functions nil)
             (flex-x-extra-pattern-function nil))
         (let* ((completions (completion-all-completions
                              "foo" '("foo") nil 3))
