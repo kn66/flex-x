@@ -1,6 +1,6 @@
 # Recommended title
 
-`flex-x: built-in flex completion with AND filtering, history-aware sorting, and migemo/pyim support`
+`flex-x: built-in flex completion with AND filtering and migemo/pyim support`
 
 # Post
 
@@ -14,13 +14,10 @@ At the same time, I also like one property of built-in `flex`: it scores matches
 
 `flex-x` is my attempt to combine the parts of those experiences that I find useful:
 
-- space-separated **AND filtering**: every input term must match;
-- **history-aware sorting**: minibuffer history first, then flex match quality;
-- optional **Corfu history** sorting outside the minibuffer;
-- customizable extra matchers or regexp expanders for non-ASCII candidates, including **migemo** and **pyim**;
-- standard match highlighting, plus whole-candidate highlighting for strong literal or consecutive word-prefix matches.
-
-That last point is meant to make a noisy flex result set easier to scan. A loose subsequence match keeps the normal per-character highlighting, while a stronger match—such as a contiguous term or a sequence of word prefixes—is emphasized as a whole.
+- space-separated **flex AND filtering**: every input term must match;
+- sorting by **minibuffer history and flex match quality**;
+- an optional regexp expander for non-ASCII candidates, including **migemo** and **pyim**;
+- standard completion match highlighting.
 
 The package is frontend-agnostic: it uses normal completion metadata and is intended to work with the completion UI you already use. It does not require Vertico, Corfu, migemo, or pyim. Optional non-ASCII matching is also bounded by default so that it does not perform an unlimited scan of very large completion tables.
 
@@ -53,9 +50,10 @@ For Chinese candidates, pyim can provide pinyin-based regexp expansion:
 - GitHub: https://github.com/kn66/flex-x
 - MELPA: https://melpa.org/#/flex-x
 
-I would especially appreciate feedback on the matching and sorting behavior: whether history-first ranking feels natural, whether the stronger highlighting helps when flex produces many candidates, and whether the extra-matcher API works well for other non-ASCII search tools.
+I would especially appreciate feedback on the matching and sorting behavior and
+whether the regexp-expander API works well for other non-ASCII search tools.
 
 # Shorter title alternatives
 
 - `flex-x: an extended version of Emacs's built-in flex completion style`
-- `I made flex-x: space-separated AND search and history ranking for built-in flex`
+- `I made flex-x: space-separated AND search for built-in flex`
