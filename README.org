@@ -111,6 +111,40 @@ pyim expansion to scan every candidate even in very large completion
 tables. Ignored filename extensions are filtered after regexp expansion,
 so an ignored file remains available when it is the only match.
 
+** Corfu History Sorting
+
+Corfu normally uses a completion table's ~display-sort-function~ instead of
+~corfu-sort-function~.  Since flex-x provides a display sort function, enabling
+~corfu-history-mode~ alone does not combine Corfu history sorting with flex-x
+sorting.  Use the
+[[https://github.com/minad/corfu/wiki#combined-sorting][combined sorting configuration from the official Corfu wiki]]
+to apply both:
+
+#+begin_src emacs-lisp
+  (with-eval-after-load 'corfu
+    (corfu-history-mode 1)
+
+    (defun my-corfu-combined-sort (candidates)
+      "Sort CANDIDATES using both display and Corfu sort functions."
+      (let ((candidates
+             (let ((display-sort-function
+                    (corfu--metadata-get 'display-sort-function)))
+               (if display-sort-function
+                   (funcall display-sort-function candidates)
+                 candidates))))
+        (if corfu-sort-function
+            (funcall corfu-sort-function candidates)
+          candidates)))
+
+    (setopt corfu-sort-override-function #'my-corfu-combined-sort))
+#+end_src
+
+This makes Corfu history sorting the final sorting layer.  Since
+~corfu-sort-override-function~ deliberately overrides completion metadata, it
+also reorders tables whose ~display-sort-function~ is ~identity~.  Omit this
+override where preserving the completion table's exact order is more important
+than Corfu history sorting.
+
 * Regexp Expander
 
 ~flex-x-extra-pattern-function~ can be nil, one function, or one function
