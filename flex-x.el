@@ -681,8 +681,7 @@ accepted."
         (when (and extra-matchers minibuffer-completing-file-name)
           (setq candidates
                 (completion-pcm--filename-try-filter candidates)))
-        (when (and (flex-x--lazy-hilit-p)
-                   (boundp 'completion-lazy-hilit-fn))
+        (when (boundp 'completion-lazy-hilit-fn)
           (setq completion-lazy-hilit-fn #'flex-x--lazy-hilit-candidate))
         (cons candidates base-size)))))
 

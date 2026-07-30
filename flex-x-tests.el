@@ -336,6 +336,27 @@
                                        'completions-common-part))
       (should (flex-x-tests--all-face-p highlighted 'flex-x-highlight)))))
 
+(ert-deftest flex-x-nested-eager-completion-preserves-lazy-hilit ()
+  (let ((completion-styles '(flex-x))
+        (completion-ignore-case t)
+        (completion-lazy-hilit t)
+        completion-lazy-hilit-fn)
+    (let ((candidate
+           (car (completion-all-completions
+                 "move" '("Move by camelCase Components") nil 4))))
+      (should (eq completion-lazy-hilit-fn
+                  #'flex-x--lazy-hilit-candidate))
+      (let ((completion-lazy-hilit nil))
+        (completion-all-completions
+         "move" '("Move Deleted Files to the Trash") nil 4))
+      (should (eq completion-lazy-hilit-fn
+                  #'flex-x--lazy-hilit-candidate))
+      (let ((highlighted (completion-lazy-hilit candidate)))
+        (should (flex-x-tests--face-at-p highlighted 0
+                                         'completions-common-part))
+        (should (flex-x-tests--all-face-p
+                 highlighted 'flex-x-highlight))))))
+
 (ert-deftest flex-x-extra-matcher-adds-nonascii-candidate ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-match-functions

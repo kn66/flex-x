@@ -22,7 +22,8 @@ requirements, and non-goals. Put implementation details in tests, code, or
   candidates as already sorted and disables additional display or cycle
   sorting.
 - Annotate and highlight matches with standard completion properties and faces,
-  including lazy highlighting when available.
+  including lazy highlighting when available, and preserve lazy highlighting
+  across nested eager completion requests.
 - Highlight a candidate as a whole with the package face `flex-x-highlight`
   when every search term occurs contiguously in the candidate or matches a
   concatenation of prefixes from consecutive words delimited by separators or
