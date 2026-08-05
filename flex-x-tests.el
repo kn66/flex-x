@@ -64,7 +64,69 @@
 (ert-deftest flex-x-registers-completion-style ()
   (should (assq 'flex-x completion-styles-alist))
   (should (eq (get 'flex-x 'completion--adjust-metadata)
-              #'flex-x--adjust-metadata)))
+              #'flex-x--adjust-metadata))
+  (should (memq #'flex-x--minibuffer-setup minibuffer-setup-hook)))
+
+(ert-deftest flex-x-minibuffer-indicator-shows-matching-mode ()
+  (with-temp-buffer
+    (insert "Prompt: input")
+    (let* ((completion-styles '(flex-x))
+           (literal-terms-p t)
+           (table
+            (lambda (string pred action)
+              (if (eq action 'metadata)
+                  (and literal-terms-p
+                       '(metadata (display-sort-function . identity)))
+                (complete-with-action action '("input") string pred))))
+           (minibuffer-completion-table table)
+           (minibuffer-completion-predicate nil))
+      (cl-letf (((symbol-function 'minibufferp)
+                 (lambda (&optional _buffer) t))
+                ((symbol-function 'minibuffer-prompt-end)
+                 (lambda () 9))
+                ((symbol-function 'minibuffer-contents-no-properties)
+                 (lambda () "input")))
+        (flex-x--minibuffer-setup)
+        (should (equal (overlay-start flex-x--mode-indicator-overlay)
+                       (point-min)))
+        (should (equal (overlay-end flex-x--mode-indicator-overlay) 9))
+        (should (equal
+                 (substring-no-properties
+                  (overlay-get flex-x--mode-indicator-overlay
+                               'after-string))
+                 "[Literal] "))
+        ;; Minibuffer buffers are reused after their overlays are deleted.
+        (delete-overlay flex-x--mode-indicator-overlay)
+        (setq literal-terms-p nil)
+        (flex-x--context "input" table nil 5)
+        (should (eq (overlay-buffer flex-x--mode-indicator-overlay)
+                    (current-buffer)))
+        (should (equal
+                 (substring-no-properties
+                  (overlay-get flex-x--mode-indicator-overlay
+                               'after-string))
+                 "[Fuzzy] "))
+        (should (equal (buffer-string) "Prompt: input"))))))
+
+(ert-deftest flex-x-minibuffer-indicator-remains-with-no-candidates ()
+  (with-temp-buffer
+    (insert "Prompt: zz")
+    (let* ((completion-styles '(flex-x))
+           (table
+            (lambda (string pred action)
+              (if (eq action 'metadata)
+                  '(metadata (display-sort-function . identity))
+                (complete-with-action action '("foo") string pred)))))
+      (cl-letf (((symbol-function 'minibufferp)
+                 (lambda (&optional _buffer) t))
+                ((symbol-function 'minibuffer-prompt-end)
+                 (lambda () 9)))
+        (should-not (completion-all-completions "zz" table nil 2))
+        (should (equal
+                 (substring-no-properties
+                  (overlay-get flex-x--mode-indicator-overlay
+                               'after-string))
+                 "[Literal] "))))))
 
 (ert-deftest flex-x-space-separated-terms-use-order-independent-flex ()
   (let ((completion-styles '(flex-x))

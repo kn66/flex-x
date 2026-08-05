@@ -31,6 +31,7 @@
 ;;
 ;; - Space-separated AND filtering.
 ;; - Sorting by minibuffer history and flex score.
+;; - A minibuffer indicator for fuzzy or literal matching.
 ;; - Standard completion highlighting, including lazy highlighting.
 ;; - An optional regexp expander for non-ASCII candidates, such as migemo or
 ;;   pyim.
@@ -93,6 +94,9 @@ Set this to nil to allow scanning every prefix candidate."
 (defvar flex-x--last-match-context nil
   "Last match context used by `flex-x-all-completions'.")
 
+(defvar-local flex-x--mode-indicator-overlay nil
+  "Overlay displaying the flex-x matching mode in the minibuffer.")
+
 (defconst flex-x--metadata-properties
   '(display-sort-function
     cycle-sort-function
@@ -118,15 +122,47 @@ Set this to nil to allow scanning every prefix candidate."
   "Split STRING into non-empty flex-x search terms."
   (split-string string flex-x--whitespace-regexp t))
 
+(defun flex-x--identity-sort-p (metadata)
+  "Return non-nil when METADATA preserves candidate order."
+  (or (eq (completion-metadata-get metadata 'display-sort-function)
+          #'identity)
+      (eq (completion-metadata-get metadata 'cycle-sort-function)
+          #'identity)))
+
 (defun flex-x--identity-sort-metadata-p (string table pred)
   "Return non-nil when TABLE metadata preserves candidate order.
 
 STRING and PRED are passed to `completion-metadata'."
-  (let ((metadata (completion-metadata string table pred)))
-    (or (eq (completion-metadata-get metadata 'display-sort-function)
-            #'identity)
-        (eq (completion-metadata-get metadata 'cycle-sort-function)
-            #'identity))))
+  (flex-x--identity-sort-p (completion-metadata string table pred)))
+
+(defun flex-x--set-mode-indicator (literal-terms-p)
+  "Display the flex-x matching mode in the current minibuffer.
+
+LITERAL-TERMS-P means display the literal matching mode."
+  (when (minibufferp)
+    (let ((position (minibuffer-prompt-end)))
+      (unless (overlayp flex-x--mode-indicator-overlay)
+        (setq flex-x--mode-indicator-overlay
+              (make-overlay (point-min) position nil nil nil)))
+      (move-overlay flex-x--mode-indicator-overlay
+                    (point-min) position (current-buffer))
+      (overlay-put
+       flex-x--mode-indicator-overlay
+       'after-string
+       (propertize (if literal-terms-p "[Literal] " "[Fuzzy] ")
+                   'face 'minibuffer-prompt)))))
+
+(defun flex-x--minibuffer-setup ()
+  "Display the initial flex-x matching mode in a completion minibuffer."
+  (when minibuffer-completion-table
+    (let* ((string (minibuffer-contents-no-properties))
+           (metadata (completion-metadata
+                      string
+                      minibuffer-completion-table
+                      minibuffer-completion-predicate)))
+      (when (memq 'flex-x (completion--styles metadata))
+        (flex-x--set-mode-indicator
+         (flex-x--identity-sort-p metadata))))))
 
 (defun flex-x--context (string table pred point)
   "Return completion context for STRING, TABLE, PRED and POINT."
@@ -137,14 +173,16 @@ STRING and PRED are passed to `completion-metadata'."
          (end (or (cdr-safe bounds) (length afterpoint)))
          (field-before (substring beforepoint start))
          (field-after (substring afterpoint 0 end))
-         (field (concat field-before field-after)))
+         (field (concat field-before field-after))
+         (literal-terms-p
+          (flex-x--identity-sort-metadata-p string table pred)))
+    (flex-x--set-mode-indicator literal-terms-p)
     (make-flex-x--context
      :prefix (substring beforepoint 0 start)
      :suffix (substring afterpoint end)
      :field field
      :terms (flex-x--split field)
-     :literal-terms-p
-     (flex-x--identity-sort-metadata-p string table pred))))
+     :literal-terms-p literal-terms-p)))
 
 (defun flex-x--context-completion-string (context candidate)
   "Return full completion string for CANDIDATE in CONTEXT."
@@ -766,7 +804,8 @@ accepted."
        flex-x-try-completion
        flex-x-all-completions
        "Extended flex completion with space-separated terms.")))
-  (put 'flex-x 'completion--adjust-metadata #'flex-x--adjust-metadata))
+  (put 'flex-x 'completion--adjust-metadata #'flex-x--adjust-metadata)
+  (add-hook 'minibuffer-setup-hook #'flex-x--minibuffer-setup))
 
 (flex-x-register-style)
 

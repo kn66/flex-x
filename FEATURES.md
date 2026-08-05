@@ -16,6 +16,9 @@ requirements, and non-goals. Put implementation details in tests, code, or
 - When completion metadata explicitly preserves candidate order with an
   `identity` sort function, match every input term literally instead of
   returning unsorted fuzzy matches.
+- In the minibuffer, display `[Fuzzy]` or `[Literal]` immediately after the
+  prompt to identify the current flex-x matching mode without changing the
+  completion input.
 - Sort candidates by flex match quality without discarding existing metadata
   sort functions.
 - When minibuffer completion has no explicit metadata sort function, stably
@@ -44,7 +47,8 @@ requirements, and non-goals. Put implementation details in tests, code, or
 - Replacing Emacs completion frontends, completion tables, or the built-in flex
   matching algorithm.
 - Requiring migemo, pyim, Vertico, or another third-party package.
-- Adding frontend-specific UI behavior beyond standard completion metadata.
+- Adding UI behavior specific to Vertico, Corfu, Icomplete, or another
+  completion frontend.
 - Performing unbounded full-table scans by default.
 - Adding speculative options, compatibility paths, refactors, or optimizations
   without a listed behavior, clear bug, or measured target.
