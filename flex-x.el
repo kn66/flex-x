@@ -94,9 +94,6 @@ Set this to nil to allow scanning every prefix candidate."
 (defvar flex-x--last-match-context nil
   "Last match context used by `flex-x-all-completions'.")
 
-(defvar-local flex-x--mode-indicator-overlay nil
-  "Overlay displaying the flex-x matching mode in the minibuffer.")
-
 (defconst flex-x--metadata-properties
   '(display-sort-function
     cycle-sort-function
@@ -140,17 +137,35 @@ STRING and PRED are passed to `completion-metadata'."
 
 LITERAL-TERMS-P means display the literal matching mode."
   (when (minibufferp)
-    (let ((position (minibuffer-prompt-end)))
-      (unless (overlayp flex-x--mode-indicator-overlay)
-        (setq flex-x--mode-indicator-overlay
-              (make-overlay (point-min) position nil nil nil)))
-      (move-overlay flex-x--mode-indicator-overlay
-                    (point-min) position (current-buffer))
-      (overlay-put
-       flex-x--mode-indicator-overlay
-       'after-string
-       (propertize (if literal-terms-p "[Literal] " "[Fuzzy] ")
-                   'face 'minibuffer-prompt)))))
+    (let* ((label (if literal-terms-p "[Literal] " "[Fuzzy] "))
+           (match
+            (save-excursion
+              (goto-char (point-min))
+              (text-property-search-forward
+               'flex-x--mode-indicator t t)))
+           (input-offset (- (point) (minibuffer-prompt-end))))
+      (unless (and match
+                   (equal (buffer-substring-no-properties
+                           (prop-match-beginning match)
+                           (prop-match-end match))
+                          label))
+        (let ((inhibit-read-only t))
+          (with-silent-modifications
+            (if match
+                (progn
+                  (goto-char (prop-match-beginning match))
+                  (delete-region (point) (prop-match-end match)))
+              (goto-char (minibuffer-prompt-end)))
+            (insert
+             (propertize label
+                         'field t
+                         'read-only t
+                         'front-sticky t
+                         'rear-nonsticky t
+                         'face 'minibuffer-prompt
+                         'flex-x--mode-indicator t))
+            (goto-char (+ (minibuffer-prompt-end)
+                          (max input-offset 0)))))))))
 
 (defun flex-x--minibuffer-setup ()
   "Display the initial flex-x matching mode in a completion minibuffer."

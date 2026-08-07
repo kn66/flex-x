@@ -99,8 +99,8 @@ function or flex match quality.
 
 In a completion minibuffer, flex-x displays ~[Fuzzy]~ or ~[Literal]~
 immediately after the prompt.  The indicator reflects the current matching
-mode even when there are no matching candidates, and it is displayed with an
-overlay so it does not become part of the completion input.
+mode even when there are no matching candidates.  It is part of the protected
+minibuffer prompt, so it does not become part of the completion input.
 
 When minibuffer completion does not provide an explicit sort function, flex-x
 first sorts by flex match quality and then stably promotes matching candidates

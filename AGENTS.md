@@ -59,9 +59,8 @@ broader changes.
 
 ## Commit & Pull Request Guidelines
 
-Recent history uses short, direct Japanese commit summaries such as
-`vertico-buffer-frameの設定を調整` and `:afterキーワードを追加`. Follow that concise
-style unless the project adopts a new convention. Keep commits scoped to one
+Write commit summaries in English using short, direct imperative phrases, for
+example `Stabilize minibuffer mode indicator`. Keep commits scoped to one
 logical change.
 
 Pull requests should include a brief description, the affected completion

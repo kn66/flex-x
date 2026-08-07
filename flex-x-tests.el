@@ -69,7 +69,12 @@
 
 (ert-deftest flex-x-minibuffer-indicator-shows-matching-mode ()
   (with-temp-buffer
-    (insert "Prompt: input")
+    (insert (propertize "Prompt: "
+                        'field t
+                        'read-only t
+                        'front-sticky t
+                        'rear-nonsticky t)
+            "input")
     (let* ((completion-styles '(flex-x))
            (literal-terms-p t)
            (table
@@ -83,34 +88,30 @@
       (cl-letf (((symbol-function 'minibufferp)
                  (lambda (&optional _buffer) t))
                 ((symbol-function 'minibuffer-prompt-end)
-                 (lambda () 9))
+                 (lambda () (field-end (point-min))))
                 ((symbol-function 'minibuffer-contents-no-properties)
-                 (lambda () "input")))
+                 (lambda ()
+                   (buffer-substring-no-properties
+                    (minibuffer-prompt-end) (point-max)))))
         (flex-x--minibuffer-setup)
-        (should (equal (overlay-start flex-x--mode-indicator-overlay)
-                       (point-min)))
-        (should (equal (overlay-end flex-x--mode-indicator-overlay) 9))
-        (should (equal
-                 (substring-no-properties
-                  (overlay-get flex-x--mode-indicator-overlay
-                               'after-string))
-                 "[Literal] "))
-        ;; Minibuffer buffers are reused after their overlays are deleted.
-        (delete-overlay flex-x--mode-indicator-overlay)
+        (should (equal (buffer-string) "Prompt: [Literal] input"))
+        (should (equal (minibuffer-contents-no-properties) "input"))
+        (should (eq (get-text-property 9 'field) t))
+        (should (eq (get-text-property 9 'read-only) t))
+        (should (eq (get-text-property 9 'flex-x--mode-indicator) t))
         (setq literal-terms-p nil)
         (flex-x--context "input" table nil 5)
-        (should (eq (overlay-buffer flex-x--mode-indicator-overlay)
-                    (current-buffer)))
-        (should (equal
-                 (substring-no-properties
-                  (overlay-get flex-x--mode-indicator-overlay
-                               'after-string))
-                 "[Fuzzy] "))
-        (should (equal (buffer-string) "Prompt: input"))))))
+        (should (equal (buffer-string) "Prompt: [Fuzzy] input"))
+        (should (equal (minibuffer-contents-no-properties) "input"))))))
 
 (ert-deftest flex-x-minibuffer-indicator-remains-with-no-candidates ()
   (with-temp-buffer
-    (insert "Prompt: zz")
+    (insert (propertize "Prompt: "
+                        'field t
+                        'read-only t
+                        'front-sticky t
+                        'rear-nonsticky t)
+            "zz")
     (let* ((completion-styles '(flex-x))
            (table
             (lambda (string pred action)
@@ -120,13 +121,32 @@
       (cl-letf (((symbol-function 'minibufferp)
                  (lambda (&optional _buffer) t))
                 ((symbol-function 'minibuffer-prompt-end)
-                 (lambda () 9)))
+                 (lambda () (field-end (point-min)))))
         (should-not (completion-all-completions "zz" table nil 2))
-        (should (equal
-                 (substring-no-properties
-                  (overlay-get flex-x--mode-indicator-overlay
-                               'after-string))
-                 "[Literal] "))))))
+        (should (equal (buffer-string) "Prompt: [Literal] zz"))))))
+
+(ert-deftest flex-x-minibuffer-indicator-allows-input-after-empty-prompt ()
+  (with-temp-buffer
+    (insert (propertize "Prompt: "
+                        'field t
+                        'read-only t
+                        'front-sticky t
+                        'rear-nonsticky t))
+    (let ((completion-styles '(flex-x))
+          (minibuffer-completion-table '("input"))
+          (minibuffer-completion-predicate nil))
+      (cl-letf (((symbol-function 'minibufferp)
+                 (lambda (&optional _buffer) t))
+                ((symbol-function 'minibuffer-prompt-end)
+                 (lambda () (field-end (point-min))))
+                ((symbol-function 'minibuffer-contents-no-properties)
+                 (lambda ()
+                   (buffer-substring-no-properties
+                    (minibuffer-prompt-end) (point-max)))))
+        (flex-x--minibuffer-setup)
+        (should (= (point) (minibuffer-prompt-end)))
+        (insert "i")
+        (should (equal (minibuffer-contents-no-properties) "i"))))))
 
 (ert-deftest flex-x-space-separated-terms-use-order-independent-flex ()
   (let ((completion-styles '(flex-x))
