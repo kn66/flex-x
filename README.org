@@ -57,6 +57,24 @@ configuration used for the screenshots:
     (setopt completion-styles '(flex-x basic)))
 #+end_src
 
+In Fido completion minibuffers, ~SPC~ runs ~minibuffer-complete-word~ instead
+of inserting a space.  This means that pressing ~SPC~ after fuzzy input may
+replace the input with the candidates' common prefix, which can consist only
+of indentation.  Use ~C-q SPC~ to insert an occasional literal space and
+switch flex-x to literal matching.
+
+If whitespace-separated filtering is used frequently, bind ~SPC~ to
+~self-insert-command~.  The optional ~M-SPC~ binding below keeps word
+completion available on another key:
+
+#+begin_src emacs-lisp
+  (with-eval-after-load 'icomplete
+    (keymap-set icomplete-fido-mode-map
+                "SPC" #'self-insert-command)
+    (keymap-set icomplete-fido-mode-map
+                "M-SPC" #'minibuffer-complete-word))
+#+end_src
+
 Some completion categories have built-in ~completion-category-overrides~
 which can prepend or replace styles for that category. If you want
 ~flex-x~ to be preferred for those categories too, configure category
