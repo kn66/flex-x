@@ -225,6 +225,31 @@
                      (completion-all-completions
                       "tokyo" '("東京" "touch") nil 5))))))
 
+(ert-deftest flex-x-extra-pattern-ignores-invisible-nonascii-text ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-pattern-function (lambda (_term) "class"))
+         (flex-x-extra-match-nonascii-only t)
+         (candidate
+          (concat "className"
+                  (propertize (string #x100021) 'invisible t))))
+    (should-not (completion-all-completions
+                 "zz" (list candidate) nil 2))))
+
+(ert-deftest flex-x-extra-pattern-keeps-visible-nonascii-eligibility ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-pattern-function (lambda (_term) "class"))
+         (flex-x-extra-match-nonascii-only t)
+         (candidate
+          (concat "日本 className"
+                  (propertize (string #x100021) 'invisible t))))
+    (should
+     (equal
+      (mapcar #'substring-no-properties
+              (flex-x-tests--items
+               (completion-all-completions
+                "zz" (list candidate) nil 2)))
+      (list (substring-no-properties candidate))))))
+
 (ert-deftest flex-x-extra-pattern-function-is-cached-per-term ()
   (let* ((completion-styles '(flex-x))
          (calls 0)

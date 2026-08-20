@@ -242,9 +242,11 @@ Set this to nil to allow scanning every prefix candidate."
               :cost cost
               :matches matches)))))
 
-(defun flex-x--string-nonascii-p (string)
-  "Return non-nil if STRING has at least one non-ASCII character."
-  (cl-loop for char across string thereis (> char 127)))
+(defun flex-x--visible-string-nonascii-p (string)
+  "Return non-nil if STRING has a visible non-ASCII character."
+  (cl-loop for index below (length string)
+           thereis (and (> (aref string index) 127)
+                        (not (get-text-property index 'invisible string)))))
 
 (defun flex-x--extra-pattern-p ()
   "Return non-nil if an extra regexp expander is configured."
@@ -262,7 +264,7 @@ Set this to nil to allow scanning every prefix candidate."
   "Return non-nil when extra regexp matching may run for CANDIDATE."
   (and (flex-x--extra-pattern-p)
        (or (not flex-x-extra-match-nonascii-only)
-           (flex-x--string-nonascii-p candidate))))
+           (flex-x--visible-string-nonascii-p candidate))))
 
 (defun flex-x--valid-regexp (regexp)
   "Return REGEXP when it is a valid non-empty regexp string."
@@ -330,7 +332,7 @@ Set this to nil to allow scanning every prefix candidate."
     (or (if (flex-x--match-context-literal-terms-p match-context)
             (flex-x--literal-match term candidate target match-context)
           (flex-x--builtin-flex-match term candidate target match-context))
-        (and (flex-x--extra-pattern-match-allowed-p target)
+        (and (flex-x--extra-pattern-match-allowed-p candidate)
              (flex-x--extra-pattern-match term target match-context)))))
 
 (defun flex-x--match-candidate (candidate match-context)

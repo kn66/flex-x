@@ -32,6 +32,9 @@ requirements, and non-goals. Put implementation details in tests, code, or
   a third-party package at load time.  Keep expanded regexp matching available
   as an alternative when the selected built-in matching mode does not match a
   term.
+- When expanded regexp matching is restricted to non-ASCII candidates, inspect
+  only visible candidate text so invisible disambiguation characters do not
+  enable expansion for an otherwise ASCII candidate.
 - Keep expanded regexp matching bounded by default by stopping predicate-driven
   candidate enumeration when the configured limit is exceeded, and cache
   generated patterns per completion request.
