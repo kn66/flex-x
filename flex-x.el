@@ -29,9 +29,8 @@
 ;;
 ;; Features:
 ;;
-;; - Space-separated AND filtering.
+;; - Fuzzy matching before whitespace and literal AND filtering after it.
 ;; - Sorting by minibuffer history and flex score.
-;; - A minibuffer indicator for fuzzy or literal matching.
 ;; - Standard completion highlighting, including lazy highlighting.
 ;; - An optional regexp expander for non-ASCII candidates, such as migemo or
 ;;   pyim.
@@ -119,66 +118,6 @@ Set this to nil to allow scanning every prefix candidate."
   "Split STRING into non-empty flex-x search terms."
   (split-string string flex-x--whitespace-regexp t))
 
-(defun flex-x--identity-sort-p (metadata)
-  "Return non-nil when METADATA preserves candidate order."
-  (or (eq (completion-metadata-get metadata 'display-sort-function)
-          #'identity)
-      (eq (completion-metadata-get metadata 'cycle-sort-function)
-          #'identity)))
-
-(defun flex-x--identity-sort-metadata-p (string table pred)
-  "Return non-nil when TABLE metadata preserves candidate order.
-
-STRING and PRED are passed to `completion-metadata'."
-  (flex-x--identity-sort-p (completion-metadata string table pred)))
-
-(defun flex-x--set-mode-indicator (literal-terms-p)
-  "Display the flex-x matching mode in the current minibuffer.
-
-LITERAL-TERMS-P means display the literal matching mode."
-  (when (minibufferp)
-    (let* ((label (if literal-terms-p "[Literal] " "[Fuzzy] "))
-           (match
-            (save-excursion
-              (goto-char (point-min))
-              (text-property-search-forward
-               'flex-x--mode-indicator t t)))
-           (input-offset (- (point) (minibuffer-prompt-end))))
-      (unless (and match
-                   (equal (buffer-substring-no-properties
-                           (prop-match-beginning match)
-                           (prop-match-end match))
-                          label))
-        (let ((inhibit-read-only t))
-          (with-silent-modifications
-            (if match
-                (progn
-                  (goto-char (prop-match-beginning match))
-                  (delete-region (point) (prop-match-end match)))
-              (goto-char (minibuffer-prompt-end)))
-            (insert
-             (propertize label
-                         'field t
-                         'read-only t
-                         'front-sticky t
-                         'rear-nonsticky t
-                         'face 'minibuffer-prompt
-                         'flex-x--mode-indicator t))
-            (goto-char (+ (minibuffer-prompt-end)
-                          (max input-offset 0)))))))))
-
-(defun flex-x--minibuffer-setup ()
-  "Display the initial flex-x matching mode in a completion minibuffer."
-  (when minibuffer-completion-table
-    (let* ((string (minibuffer-contents-no-properties))
-           (metadata (completion-metadata
-                      string
-                      minibuffer-completion-table
-                      minibuffer-completion-predicate)))
-      (when (memq 'flex-x (completion--styles metadata))
-        (flex-x--set-mode-indicator
-         (flex-x--identity-sort-p metadata))))))
-
 (defun flex-x--context (string table pred point)
   "Return completion context for STRING, TABLE, PRED and POINT."
   (let* ((beforepoint (substring string 0 point))
@@ -190,8 +129,7 @@ LITERAL-TERMS-P means display the literal matching mode."
          (field-after (substring afterpoint 0 end))
          (field (concat field-before field-after))
          (literal-terms-p
-          (flex-x--identity-sort-metadata-p string table pred)))
-    (flex-x--set-mode-indicator literal-terms-p)
+          (string-match-p flex-x--whitespace-regexp field)))
     (make-flex-x--context
      :prefix (substring beforepoint 0 start)
      :suffix (substring afterpoint end)
@@ -755,17 +693,15 @@ accepted."
 
 (defun flex-x--compose-sort-function (existing-sort-function match-context-cell)
   "Return a sort function composed with EXISTING-SORT-FUNCTION."
-  (if (eq existing-sort-function #'identity)
-      #'identity
-    (lambda (candidates)
-      (let ((sorted (if existing-sort-function
-                        (funcall existing-sort-function candidates)
-                      candidates)))
-        (setq sorted
-              (flex-x--sort-candidates sorted (car match-context-cell)))
-        (if existing-sort-function
-            sorted
-          (flex-x--promote-minibuffer-history sorted))))))
+  (lambda (candidates)
+    (let ((sorted (if existing-sort-function
+                      (funcall existing-sort-function candidates)
+                    candidates)))
+      (setq sorted
+            (flex-x--sort-candidates sorted (car match-context-cell)))
+      (if existing-sort-function
+          sorted
+        (flex-x--promote-minibuffer-history sorted)))))
 
 (defun flex-x--adjust-metadata (metadata)
   "Adjust completion METADATA for flex-x sorting."
@@ -785,8 +721,9 @@ accepted."
            (completion-metadata-get metadata 'cycle-sort-function)))
          (rest (flex-x--metadata-without-flex-x metadata)))
     (setcar match-context-cell match-context)
-    (if (not (and match-context
-                  (flex-x--match-context-terms match-context)))
+    (if (or (not (and match-context
+                      (flex-x--match-context-terms match-context)))
+            (flex-x--match-context-literal-terms-p match-context))
         `(metadata
           ,@(and original-display-sort-function
                  `((display-sort-function . ,original-display-sort-function)))
@@ -820,7 +757,7 @@ accepted."
        flex-x-all-completions
        "Extended flex completion with space-separated terms.")))
   (put 'flex-x 'completion--adjust-metadata #'flex-x--adjust-metadata)
-  (add-hook 'minibuffer-setup-hook #'flex-x--minibuffer-setup))
+  (remove-hook 'minibuffer-setup-hook 'flex-x--minibuffer-setup))
 
 (flex-x-register-style)
 

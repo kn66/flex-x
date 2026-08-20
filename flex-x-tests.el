@@ -65,90 +65,9 @@
   (should (assq 'flex-x completion-styles-alist))
   (should (eq (get 'flex-x 'completion--adjust-metadata)
               #'flex-x--adjust-metadata))
-  (should (memq #'flex-x--minibuffer-setup minibuffer-setup-hook)))
+  (should-not (memq 'flex-x--minibuffer-setup minibuffer-setup-hook)))
 
-(ert-deftest flex-x-minibuffer-indicator-shows-matching-mode ()
-  (with-temp-buffer
-    (insert (propertize "Prompt: "
-                        'field t
-                        'read-only t
-                        'front-sticky t
-                        'rear-nonsticky t)
-            "input")
-    (let* ((completion-styles '(flex-x))
-           (literal-terms-p t)
-           (table
-            (lambda (string pred action)
-              (if (eq action 'metadata)
-                  (and literal-terms-p
-                       '(metadata (display-sort-function . identity)))
-                (complete-with-action action '("input") string pred))))
-           (minibuffer-completion-table table)
-           (minibuffer-completion-predicate nil))
-      (cl-letf (((symbol-function 'minibufferp)
-                 (lambda (&optional _buffer) t))
-                ((symbol-function 'minibuffer-prompt-end)
-                 (lambda () (field-end (point-min))))
-                ((symbol-function 'minibuffer-contents-no-properties)
-                 (lambda ()
-                   (buffer-substring-no-properties
-                    (minibuffer-prompt-end) (point-max)))))
-        (flex-x--minibuffer-setup)
-        (should (equal (buffer-string) "Prompt: [Literal] input"))
-        (should (equal (minibuffer-contents-no-properties) "input"))
-        (should (eq (get-text-property 9 'field) t))
-        (should (eq (get-text-property 9 'read-only) t))
-        (should (eq (get-text-property 9 'flex-x--mode-indicator) t))
-        (setq literal-terms-p nil)
-        (flex-x--context "input" table nil 5)
-        (should (equal (buffer-string) "Prompt: [Fuzzy] input"))
-        (should (equal (minibuffer-contents-no-properties) "input"))))))
-
-(ert-deftest flex-x-minibuffer-indicator-remains-with-no-candidates ()
-  (with-temp-buffer
-    (insert (propertize "Prompt: "
-                        'field t
-                        'read-only t
-                        'front-sticky t
-                        'rear-nonsticky t)
-            "zz")
-    (let* ((completion-styles '(flex-x))
-           (table
-            (lambda (string pred action)
-              (if (eq action 'metadata)
-                  '(metadata (display-sort-function . identity))
-                (complete-with-action action '("foo") string pred)))))
-      (cl-letf (((symbol-function 'minibufferp)
-                 (lambda (&optional _buffer) t))
-                ((symbol-function 'minibuffer-prompt-end)
-                 (lambda () (field-end (point-min)))))
-        (should-not (completion-all-completions "zz" table nil 2))
-        (should (equal (buffer-string) "Prompt: [Literal] zz"))))))
-
-(ert-deftest flex-x-minibuffer-indicator-allows-input-after-empty-prompt ()
-  (with-temp-buffer
-    (insert (propertize "Prompt: "
-                        'field t
-                        'read-only t
-                        'front-sticky t
-                        'rear-nonsticky t))
-    (let ((completion-styles '(flex-x))
-          (minibuffer-completion-table '("input"))
-          (minibuffer-completion-predicate nil))
-      (cl-letf (((symbol-function 'minibufferp)
-                 (lambda (&optional _buffer) t))
-                ((symbol-function 'minibuffer-prompt-end)
-                 (lambda () (field-end (point-min))))
-                ((symbol-function 'minibuffer-contents-no-properties)
-                 (lambda ()
-                   (buffer-substring-no-properties
-                    (minibuffer-prompt-end) (point-max)))))
-        (flex-x--minibuffer-setup)
-        (should (= (point) (minibuffer-prompt-end)))
-        (insert "i")
-        (should (equal (minibuffer-contents-no-properties) "i"))))))
-
-(ert-deftest flex-x-space-separated-terms-use-order-independent-flex ()
+(ert-deftest flex-x-space-separated-terms-use-order-independent-literals ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-pattern-function nil))
     (should (equal (flex-x-tests--items
@@ -159,30 +78,25 @@
                      nil 8))
                    '("project-find-file")))))
 
-(ert-deftest flex-x-space-separated-terms-allow-fuzzy-matches ()
+(ert-deftest flex-x-space-separated-terms-reject-fuzzy-only-matches ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-pattern-function nil))
-    (should (equal (flex-x-tests--items
-                    (completion-all-completions
-                     "ff pro" '("project-find-file") nil 6))
-                   '("project-find-file")))))
+    (should-not (completion-all-completions
+                 "ff pro" '("project-find-file") nil 6))))
 
-(ert-deftest flex-x-space-separated-terms-require-every-flex-match ()
+(ert-deftest flex-x-space-separated-terms-require-every-literal-match ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-pattern-function nil))
     (should-not (completion-all-completions
                  "zz pro" '("project-find-file") nil 6))))
 
-(ert-deftest flex-x-trailing-space-keeps-flex-matching ()
+(ert-deftest flex-x-trailing-space-switches-to-literal-matching ()
   (let ((completion-styles '(flex-x))
         (flex-x-extra-pattern-function nil))
-    (should (equal (flex-x-tests--items
-                    (completion-all-completions
-                     "ff " '("find-file") nil 3))
-                   '("find-file")))
-    (should (equal (flex-x-try-completion
-                    "ff " '("find-file") nil 3)
-                   '("find-file" . 9)))))
+    (should-not (completion-all-completions
+                 "ff " '("find-file") nil 3))
+    (should-not (flex-x-try-completion
+                 "ff " '("find-file") nil 3))))
 
 (ert-deftest flex-x-whitespace-only-input-does-not-filter-candidates ()
   (let ((completion-styles '(flex-x))
@@ -242,6 +156,15 @@
          (point (length "dir/ ")))
     (should (equal (flex-x-try-completion input table nil point)
                    '("dir/f/qux" . 5)))))
+
+(ert-deftest flex-x-whitespace-before-completion-boundary-keeps-fuzzy-mode ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-pattern-function nil)
+         (table (flex-x-tests--slash-boundary-table '("find-file")))
+         (input "dir with/ff")
+         (context (flex-x--context input table nil (length input))))
+    (should (equal (flex-x--context-field context) "ff"))
+    (should-not (flex-x--context-literal-terms-p context))))
 
 (ert-deftest flex-x-standard-score-property-and-face-are-added ()
   (let ((completion-styles '(flex-x))
@@ -480,22 +403,23 @@
       (should (equal (funcall sort-function '("ab" "ac"))
                      '("ac" "ab"))))))
 
-(ert-deftest flex-x-sort-respects-explicit-identity-sort-functions ()
+(ert-deftest flex-x-fuzzy-sort-overrides-explicit-identity-sort-functions ()
   (let* ((completion-styles '(flex-x))
          (flex-x-extra-pattern-function nil)
          (metadata '(metadata
                      (display-sort-function . identity)
                      (cycle-sort-function . identity)))
          (completions (completion-all-completions
-                       "fb" '("foo-bar" "far-baz") nil 2 metadata))
+                       "fb" '("foo-bar" "fbar" "far-baz") nil 2 metadata))
          (candidates (flex-x-tests--items completions)))
     (dolist (property '(display-sort-function cycle-sort-function))
       (let ((sort-function (completion-metadata-get metadata property)))
-        (should (eq sort-function #'identity))
-        (should (equal (funcall sort-function candidates)
-                       '("foo-bar" "far-baz")))))))
+        (should-not (eq sort-function #'identity))
+        (should (equal (flex-x-tests--items
+                        (funcall sort-function candidates))
+                       '("fbar" "foo-bar" "far-baz")))))))
 
-(ert-deftest flex-x-display-identity-does-not-disable-cycle-sorting ()
+(ert-deftest flex-x-fuzzy-display-identity-does-not-disable-flex-sorting ()
   (let* ((completion-styles '(flex-x))
          (flex-x-extra-pattern-function nil)
          (metadata '(metadata (display-sort-function . identity)))
@@ -506,13 +430,13 @@
            (completion-metadata-get metadata 'display-sort-function))
           (cycle-sort-function
            (completion-metadata-get metadata 'cycle-sort-function)))
-      (should (eq display-sort-function #'identity))
+      (should-not (eq display-sort-function #'identity))
       (should (equal (funcall display-sort-function candidates)
-                     '("x---a" "ab")))
+                     '("ab" "x---a")))
       (should (equal (funcall cycle-sort-function candidates)
                      '("ab" "x---a"))))))
 
-(ert-deftest flex-x-cycle-identity-does-not-disable-display-sorting ()
+(ert-deftest flex-x-fuzzy-cycle-identity-does-not-disable-flex-sorting ()
   (let* ((completion-styles '(flex-x))
          (flex-x-extra-pattern-function nil)
          (metadata '(metadata (cycle-sort-function . identity)))
@@ -525,9 +449,9 @@
            (completion-metadata-get metadata 'cycle-sort-function)))
       (should (equal (funcall display-sort-function candidates)
                      '("ab" "x---a")))
-      (should (eq cycle-sort-function #'identity))
+      (should-not (eq cycle-sort-function #'identity))
       (should (equal (funcall cycle-sort-function candidates)
-                     '("x---a" "ab"))))))
+                     '("ab" "x---a"))))))
 
 (ert-deftest flex-x-identity-preserves-order-for-empty-input ()
   (let* ((completion-styles '(flex-x))
@@ -539,7 +463,7 @@
     (should-not
      (completion-metadata-get metadata 'cycle-sort-function))))
 
-(ert-deftest flex-x-identity-composes-other-explicit-sort-function ()
+(ert-deftest flex-x-fuzzy-identity-composes-other-explicit-sort-function ()
   (let* ((completion-styles '(flex-x))
          (flex-x-extra-pattern-function nil)
          (metadata '(metadata
@@ -548,8 +472,14 @@
          (completions (completion-all-completions
                        "a" '("ab" "ac") nil 1 metadata))
          (candidates (flex-x-tests--items completions)))
-    (should (eq (completion-metadata-get metadata 'display-sort-function)
-                #'identity))
+    (should-not (eq (completion-metadata-get metadata 'display-sort-function)
+                    #'identity))
+    (should (equal
+             (flex-x-tests--items
+              (funcall
+               (completion-metadata-get metadata 'display-sort-function)
+               candidates))
+             '("ab" "ac")))
     (should (equal
              (flex-x-tests--items
               (funcall
@@ -557,7 +487,7 @@
                candidates))
              '("ac" "ab")))))
 
-(ert-deftest flex-x-identity-sort-uses-literal-single-term-matching ()
+(ert-deftest flex-x-identity-sort-keeps-fuzzy-single-term-matching ()
   (let* ((completion-styles '(flex-x))
          (completion-ignore-case t)
          (flex-x-extra-pattern-function nil)
@@ -571,9 +501,9 @@
               (complete-with-action action candidates string pred)))))
     (should (equal (flex-x-tests--items
                     (completion-all-completions "Co" table nil 2))
-                   '("Common-Docs")))))
+                   '("Common-Docs" "c---o")))))
 
-(ert-deftest flex-x-identity-sort-uses-literal-multi-term-matching ()
+(ert-deftest flex-x-whitespace-uses-literal-matching-with-identity-sort ()
   (let* ((completion-styles '(flex-x))
          (flex-x-extra-pattern-function nil)
          (candidates '("project-find-file"))
@@ -584,6 +514,42 @@
               (complete-with-action action candidates string pred)))))
     (should-not
      (completion-all-completions "ff pro" table nil 6))))
+
+(ert-deftest flex-x-literal-mode-preserves-identity-sort-functions ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-pattern-function nil)
+         (metadata '(metadata
+                     (display-sort-function . identity)
+                     (cycle-sort-function . identity)))
+         (completions (completion-all-completions
+                       "a " '("x---a" "ab") nil 2 metadata))
+         (candidates (flex-x-tests--items completions)))
+    (should (equal candidates '("x---a" "ab")))
+    (dolist (property '(display-sort-function cycle-sort-function))
+      (let ((sort-function (completion-metadata-get metadata property)))
+        (should (eq sort-function #'identity))
+        (should (equal (funcall sort-function candidates)
+                       '("x---a" "ab")))))))
+
+(ert-deftest flex-x-literal-mode-does-not-add-sort-functions ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-pattern-function nil)
+         (metadata '(metadata))
+         (completions (completion-all-completions
+                       "a " '("x---a" "ab") nil 2 metadata)))
+    (should (equal (flex-x-tests--items completions)
+                   '("x---a" "ab")))
+    (should-not (completion-metadata-get metadata 'display-sort-function))
+    (should-not (completion-metadata-get metadata 'cycle-sort-function))))
+
+(ert-deftest flex-x-literal-mode-preserves-explicit-sort-function ()
+  (let* ((completion-styles '(flex-x))
+         (flex-x-extra-pattern-function nil)
+         (metadata '(metadata (display-sort-function . reverse))))
+    (completion-all-completions "a " '("ab" "ac") nil 2 metadata)
+    (should (eq (completion-metadata-get metadata 'display-sort-function)
+                #'reverse))
+    (should-not (completion-metadata-get metadata 'cycle-sort-function))))
 
 (ert-deftest flex-x-without-identity-sort-keeps-fuzzy-single-term-matching ()
   (let ((completion-styles '(flex-x))

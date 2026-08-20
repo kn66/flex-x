@@ -5,11 +5,12 @@ completion style.
 
 * Features
 
-- Order-independent flex AND filtering for whitespace-separated terms.
-- Literal matching for completion tables which explicitly preserve candidate
-  order, avoiding noisy fuzzy matches when score sorting is disabled.
+- Built-in flex matching before whitespace is entered, switching to
+  order-independent literal AND filtering after whitespace.
 - Sort by minibuffer history, then flex match quality.
-- Respect completion metadata which explicitly disables additional sorting.
+- Force flex-quality sorting in fuzzy mode, including for completion tables
+  which request an ~identity~ sort function.
+- Preserve completion metadata sorting in literal mode.
 - Highlight matches with standard completion faces.
 - Add a regexp expander for non-ASCII candidates, for example migemo or pyim.
 
@@ -86,21 +87,22 @@ By default, expanded regexp matching is used only for candidates containing
 non-ASCII characters. Customize ~flex-x-extra-match-nonascii-only~ if
 you want it to run for every candidate.
 
-Every non-empty whitespace-separated term uses built-in flex matching, and
-every term must match the candidate.  Terms may occur in any order.  A
-configured regexp expander is used as an alternative when built-in flex does
-not match a term.  Input containing only whitespace does not filter candidates.
+Before whitespace is entered in the active completion field, the input uses
+built-in flex matching.  After whitespace is entered, every non-empty term must
+match as a literal substring or through the configured regexp expander.  Terms
+may occur in any order.  Input containing only whitespace does not filter
+candidates.
 
-If completion metadata sets a display or cycle sort function to ~identity~,
-flex-x preserves the candidate order for that sort channel and uses literal
-matching even before a space is entered.  This avoids returning large unsorted
-fuzzy match sets.  The other sort channel continues to use its own metadata
-function or flex match quality.
+In fuzzy mode, flex-x always sorts both display and cycle candidates by match
+quality.  An explicit non-identity metadata sort function is retained and
+determines the order of candidates with equal flex quality.  An ~identity~ sort
+function is intentionally overridden so fuzzy results are never left
+unranked.
 
-In a completion minibuffer, flex-x displays ~[Fuzzy]~ or ~[Literal]~
-immediately after the prompt.  The indicator reflects the current matching
-mode even when there are no matching candidates.  It is part of the protected
-minibuffer prompt, so it does not become part of the completion input.
+In literal mode, flex-x does not add flex-quality or history sorting.  Original
+display and cycle sort functions, including ~identity~, are preserved.  A
+trailing space can therefore be used both to request literal matching and to
+restore a completion table's original ordering.
 
 When minibuffer completion does not provide an explicit sort function, flex-x
 first sorts by flex match quality and then stably promotes matching candidates
@@ -146,9 +148,9 @@ to apply both:
 
 This makes Corfu history sorting the final sorting layer.  Since
 ~corfu-sort-override-function~ deliberately overrides completion metadata, it
-also reorders tables whose ~display-sort-function~ is ~identity~.  Omit this
-override where preserving the completion table's exact order is more important
-than Corfu history sorting.
+also reorders literal-mode results whose ~display-sort-function~ is ~identity~.
+Omit this override where preserving the completion table's exact order in
+literal mode is more important than Corfu history sorting.
 
 * Regexp Expander
 
